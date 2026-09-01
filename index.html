@@ -602,10 +602,15 @@
         // scrolling slides the ribbon up/down through the frame like a classic tape.
         camera.lookAt(0, (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP * 0.5, LENTA_Z);
       } else {
-        // Corridor: eye level, facing straight down the axis.
-        camera.position.z = z;
-        camera.position.y = 1.7;
-        camera.rotation.set(0, 0, 0);
+        // Return to the corridor SMOOTHLY, not by a one-frame jump: height and heading fade
+        // back (rotation eased to level, never hard-reset), while depth already glides via
+        // the mid/depth cascade. This kills the "camera snap / lost framing" jolt on exit.
+        const kc = 1 - Math.exp(-dt * 2.2);
+        camera.position.y += (1.7 - camera.position.y) * kc;
+        camera.position.z += (z - camera.position.z) * kc;
+        camera.rotation.x += (0 - camera.rotation.x) * kc;
+        camera.rotation.y += (0 - camera.rotation.y) * kc;
+        camera.rotation.z += (0 - camera.rotation.z) * kc;
       }
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
@@ -672,10 +677,11 @@
         }
 
         // ---- tiles mode: position each work on the 2-column ribbon ----
-        if (mode === 'tiles' && !focusing && !focusCard) {
-          // Fan-out: cards travel from their captured corridor spot (tilesT=0) to their
-          // exact ribbon slot (tilesT=1). Smoothstepped so it's a clear, readable rearrange,
-          // and reversed the same way when returning to the corridor.
+        // Fan-out/back: gated on tilesT (not on mode) so the return-to-corridor plays out
+        // smoothly to completion even after the mode flag has already flipped. Cards travel
+        // from their captured corridor spot (tilesT=0) to their exact ribbon slot (tilesT=1)
+        // and back — no one-frame snap.
+        if (tilesT > 0.001 && !focusing && !focusCard) {
           const s = tilePos(card.index);
           const src = card.fromPos || { x: card.x, y: card.y, z: card.mesh.position.z };
           const k = tilesT * tilesT * (3 - 2 * tilesT);     // smoothstep 0→1
