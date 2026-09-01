@@ -176,40 +176,6 @@
       transform: translate(-50%, -50%) rotate(135deg);
       opacity: 1;
     }
-    #mode-switch {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      z-index: 45;
-      display: inline-flex;
-      gap: 0;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
-      overflow: hidden;
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(4px);
-      font-family: 'Courier New', monospace;
-      pointer-events: auto;
-    }
-
-    #mode-switch button {
-      appearance: none;
-      border: 0;
-      background: transparent;
-      color: rgba(190, 190, 190, 0.55);
-      font-size: 10px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      padding: 8px 14px;
-      cursor: pointer;
-      transition: color 0.25s ease, background 0.25s ease;
-    }
-
-    #mode-switch button.active {
-      color: #e6e6e6;
-      background: rgba(255, 255, 255, 0.08);
-    }
-
     body.focused {
       cursor: none;
     }
@@ -236,11 +202,6 @@
   </div>
 
   <div id="focus-cursor"></div>
-
-  <div id="mode-switch">
-    <button id="mode-corridor" class="active">Коридор</button>
-    <button id="mode-tiles">Плитки</button>
-  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="images.js"></script>
@@ -296,35 +257,6 @@
     const SIDE_SPREAD = 2.4;
     const LOOP = NUM_CARDS * CARD_GAP;
 
-    // ===== Mode state: 'corridor' (current walk) or 'tiles' (all fly out onto one wall) =====
-    let mode = 'corridor';
-    // static camera height when facing the flattened wall of tiles
-    let tilesT = 0;                // 0→1 assembly of the ribbon (visible fan-out), driven by time
-    let tilesTarget = 0;           // scroll target memory used while in tiles mode
-
-    // ===== Tiles mode: an iso view of a two-column ribbon of works that you
-    // flip through vertically. The ribbon hangs as a flat wall; the camera looks
-    // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
-    const CAM_TILES_Y = 30;            // camera height above the ribbon centre (iso from above)
-    const CAM_TILES_Z = 34;            // pulled back so the whole fan-out fits in frame
-    const LENTA_Z = -8;                 // depth plane the ribbon hangs on
-    const LENTA_COLS = 2;               // two columns of works
-    const LENTA_X = 3.4;                // half the gap between the two columns
-    const LENTA_ROW_STEP = 5.6;         // vertical spacing between stacked works
-    const TILE_BASE = 2.2;              // mini size factor of ribbon tiles
-
-    // Scroll offset for flipping the ribbon (grows the farther you scroll down).
-    let tilesScroll = 0;
-    let tilesScrollTarget = 0;
-
-    function tilePos(i) {
-      const col = i % LENTA_COLS;
-      const row = Math.floor(i / LENTA_COLS);
-      const rx = col === 0 ? -LENTA_X : LENTA_X;
-      const ry = row * LENTA_ROW_STEP - tilesScroll;
-      return { x: rx, y: ry, z: LENTA_Z };
-    }
-
     const cards = [];
     for (let i = 0; i < NUM_CARDS; i++) {
       const side = i % 2 === 0 ? -1 : 1;
@@ -378,7 +310,6 @@
     const TOUCH_SPEED = 0.1;
 
     function addScrollInput(d) {
-      if (mode === 'tiles') { tilesScrollTarget += d; return; }
       target += d;
       if (target < 0) target = 0;
       if (target > 100000) target = 100000;
@@ -431,18 +362,11 @@
     const raycaster = new THREE.Raycaster();
     function cardUnderCursor() {
       raycaster.setFromCamera(mouse, camera);
-      let candidates;
-      if (mode === 'tiles') {
-        // In tiles mode everything sits on the flat wall; no z-direction filter,
-        // just whatever is under the cursor and visible.
-        candidates = cards.filter(c => c.mesh.visible);
-      } else {
-        // Only cards right ahead of the camera can be hit
-        candidates = cards.filter(c => {
-          const cdz = c.mesh.position.z - camera.position.z;
-          return cdz < 0 && cdz > -14.001 && c.mesh.visible;
-        });
-      }
+      // Only cards right ahead of the camera can be hit
+      const candidates = cards.filter(c => {
+        const cdz = c.mesh.position.z - camera.position.z;
+        return cdz < 0 && cdz > -14.001 && c.mesh.visible;
+      });
       if (!candidates.length) return null;
       const meshes = candidates.map(c => c.mesh);
       const hits = raycaster.intersectObjects(meshes, false);
@@ -472,18 +396,16 @@
       if (!hit) return;
       focusCard = hit;
       prevTarget = target;
-      if (mode !== 'tiles') {
-        // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
-        const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
-        let cz = hit.baseline + n * LOOP;
-        while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
-        let dTarget = -cz - 6.5;
-        // If the card is already closer than 6.5 units, don't travel backward / don't spring.
-        // Clamp the target so the camera never reverses past its current depth.
-        if (dTarget < depth) dTarget = depth;
-        focusDepthTarget = dTarget;
-        target = depth;
-      }
+      // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
+      const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
+      let cz = hit.baseline + n * LOOP;
+      while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
+      let dTarget = -cz - 6.5;
+      // If the card is already closer than 6.5 units, don't travel backward / don't spring.
+      // Clamp the target so the camera never reverses past its current depth.
+      if (dTarget < depth) dTarget = depth;
+      focusDepthTarget = dTarget;
+      target = depth;
       const info = FOCUS_ITEMS[hit.index % FOCUS_ITEMS.length];
       focusTitle.textContent = info.title;
       focusText.textContent = info.text;
@@ -508,42 +430,6 @@
       if (focusCard) { unfocus(); return; }
       focusMode();
     });
-
-    // ===== Mode switch: corridor walk ⇄ flat tile wall =====
-    const modeButtons = {
-      corridor: document.getElementById('mode-corridor'),
-      tiles: document.getElementById('mode-tiles')
-    };
-    function setMode(next) {
-      if (next === mode) return;
-      unfocus(); // leave any focused panel cleanly
-      mode = next;
-      Object.keys(modeButtons).forEach(k => {
-        modeButtons[k].classList.toggle('active', k === mode);
-      });
-      // Snapshot each card's current corridor spot the FIRST time we open tiles. It stays as
-      // the `tilesT=0` source for the fan-out AND the return home on exit (don't re-snapshot
-      // on exit, or the reverse motion would collapse to zero).
-      if (mode === 'tiles' && !cards[0]._snapped) {
-        cards.forEach(c => {
-          const p = c.mesh.position;
-          c.fromPos = { x: p.x, y: p.y, z: p.z };
-        });
-        cards.forEach(c => { c._snapped = true; });
-      }
-      if (mode === 'tiles') {
-        tilesTarget = target;
-        target = 0;        // stop scroll travel; tiles are a fixed vista
-        hintEl.style.opacity = 0;
-      } else {
-        // Returning to the corridor: next time we open tiles, snapshot the (possibly new)
-        // corridor spot again so the fan-out always starts from where the user is.
-        cards.forEach(c => { c._snapped = false; });
-        target = tilesTarget || depth; // resume where the walk was
-      }
-    }
-    modeButtons.corridor.addEventListener('click', () => setMode('corridor'));
-    modeButtons.tiles.addEventListener('click', () => setMode('tiles'));
 
     const update = () => {
       const now = performance.now();
@@ -575,42 +461,9 @@
 
       const z = -depth;
 
-      // Ribbon assembly: 0→1 while in tiles, 1→0 on exit. Slower than the camera so the
-      // cards rearrange *in front of an already-settled view* — a clearly visible fan-out.
-      const tTarg = mode === 'tiles' ? 1 : 0;
-      tilesT += (tTarg - tilesT) * (1 - Math.exp(-dt * 1.8));
-
-      // Flip the ribbon as you scroll while in tiles mode (clamped to its length).
-      if (mode !== 'tiles') {
-        tilesScroll = 0;
-        tilesScrollTarget = 0;
-      } else {
-        const maxRows = Math.max(0, (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP);
-        if (tilesScrollTarget < 0) tilesScrollTarget = 0;
-        if (tilesScrollTarget > maxRows) tilesScrollTarget = maxRows;
-        tilesScroll += (tilesScrollTarget - tilesScroll) * (1 - Math.exp(-dt * 6));
-      }
-
-      if (mode === 'tiles') {
-        // Settle the camera onto the ribbon view quickly (faster than the card fan-out),
-        // so the rearrange plays out on an already-stable frame and reads clearly.
-        camera.position.x += (0 - camera.position.x) * (1 - Math.exp(-dt * 2.6));
-        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.6));
-        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.6));
-        // Steady iso: camera angle fixed on the geometric centre of the whole ribbon, so
-        // scrolling slides the ribbon up/down through the frame like a classic tape.
-        camera.lookAt(0, (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP * 0.5, LENTA_Z);
-      } else {
-        // Return to the corridor SMOOTHLY, not by a one-frame jump: height and heading fade
-        // back (rotation eased to level, never hard-reset), while depth already glides via
-        // the mid/depth cascade. This kills the "camera snap / lost framing" jolt on exit.
-        const kc = 1 - Math.exp(-dt * 2.2);
-        camera.position.y += (1.7 - camera.position.y) * kc;
-        camera.position.z += (z - camera.position.z) * kc;
-        camera.rotation.x += (0 - camera.rotation.x) * kc;
-        camera.rotation.y += (0 - camera.rotation.y) * kc;
-        camera.rotation.z += (0 - camera.rotation.z) * kc;
-      }
+      // Corridor: eye level, facing straight down the axis.
+      camera.position.set(0, 1.7, z);
+      camera.rotation.set(0, 0, 0);
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
       // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
@@ -635,7 +488,7 @@
 
         let x = card.x, y = card.y, zz = cz, sc = 1, op = 1;
 
-        if (mode !== 'tiles' && focusing) {
+        if (focusing) {
           // The chosen card glides to the screen centre & grows, stays at its slot depth
           x = 0 * t;
           y = 1.8 * t + card.y * (1 - t);
@@ -660,41 +513,6 @@
         card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
         x += card.parX;
 
-        // ---- tiles mode focus: enlarge the chosen work on the ribbon ----
-        if (mode === 'tiles' && focusing) {
-          const sf = tilePos(card.index);
-          x = sf.x;
-          y = sf.y;
-          zz = sf.z;
-          sc = TILE_BASE * (2.4 + 0.7 * t);
-          op = 1;
-        }
-
-        // ---- tiles mode: neighbours dissolve behind the chosen work ----
-        if (mode === 'tiles' && !focusing && focusCard) {
-          op = 1 - t;
-        }
-
-        // ---- tiles mode: position each work on the 2-column ribbon ----
-        // Fan-out/back: gated on tilesT (not on mode) so the return-to-corridor plays out
-        // smoothly to completion even after the mode flag has already flipped. Cards travel
-        // from their captured corridor spot (tilesT=0) to their exact ribbon slot (tilesT=1)
-        // and back — no one-frame snap.
-        if (tilesT > 0.001 && !focusing && !focusCard) {
-          const s = tilePos(card.index);
-          const src = card.fromPos || { x: card.x, y: card.y, z: card.mesh.position.z };
-          const k = tilesT * tilesT * (3 - 2 * tilesT);     // smoothstep 0→1
-          x = src.x + (s.x - src.x) * k;
-          y = src.y + (s.y - src.y) * k;
-          zz = src.z + (s.z - src.z) * k;
-          const hovered = card === hoverCard;
-          const lift = hovered ? 0.5 : 0;                  // hover nudges the tile off the wall
-          y += lift * k;
-          card.parRot = 0;
-          sc = TILE_BASE * (1 + lift * 0.35);
-          op = 1;
-        }
-
         // Fully hide cards so they can't double-draw or leave halos
         card.mesh.visible = op > 0.02;
         card.mesh.position.set(x, y, zz);
@@ -702,21 +520,13 @@
         card.mesh.scale.set(sc, sc * card.aspect, sc);
         card.mesh.material.opacity = Math.max(0, op);
         card.mesh.material.transparent = true;
-        if (mode === 'tiles') {
-          // ribbon hangs vertically, artwork facing the iso camera
-          card.mesh.rotation.set(0, 0, 0);
-        } else {
-          card.mesh.rotation.y = focusing ? 0 : card.parRot;
-          card.mesh.rotation.x = 0;
-          card.mesh.rotation.z = 0;
-        }
+        card.mesh.rotation.y = focusing ? 0 : card.parRot;
+        card.mesh.rotation.x = 0;
+        card.mesh.rotation.z = 0;
       });
 
       const prog = Math.min(1, depth / 25);
-      if (mode === 'tiles') {
-        titleCard.style.opacity = 0;
-        hintEl.style.opacity = 0;
-      } else if (prog > 0.01) {
+      if (prog > 0.01) {
         if (!focusCard) titleCard.style.opacity = 1 - prog;
         if (!focusCard) hintEl.style.opacity = 1 - prog * 1.5;
       }
