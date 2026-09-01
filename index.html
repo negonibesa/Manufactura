@@ -180,46 +180,55 @@
       cursor: none;
     }
 
-    /* ===== Mode toggle (corridor / tiles) ===== */
+    /* ===== Mode toggle: icon segments (corridor / tiles) ===== */
     #mode-toggle {
       position: fixed;
-      top: 22px;
-      right: 22px;
+      bottom: 74px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 50;
       display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 14px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.4); /* like the cursor ring */
       border-radius: 999px;
       background: rgba(0, 0, 0, 0.35);
       backdrop-filter: blur(4px);
-      color: rgba(220, 220, 220, 0.85);
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      cursor: pointer;
       user-select: none;
-      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+      transition: border-color 0.2s ease, background 0.2s ease;
     }
     #mode-toggle:hover {
-      border-color: rgba(255, 255, 255, 0.5);
-      background: rgba(0, 0, 0, 0.55);
+      border-color: rgba(255, 255, 255, 0.65);
+      background: rgba(0, 0, 0, 0.5);
     }
-    #mode-toggle .dot {
-      width: 8px; height: 8px;
+    #mode-toggle .seg {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: none;
+      outline: none;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.35);
-      transition: background 0.2s ease, box-shadow 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.55);
+      cursor: pointer;
+      transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
     }
-    #mode-toggle[data-mode="tiles"] .dot {
-      background: #ffd166;
-      box-shadow: 0 0 8px rgba(255, 209, 102, 0.8);
+    #mode-toggle .seg:hover {
+      color: rgba(255, 255, 255, 0.9);
     }
-    #mode-toggle .sep { opacity: 0.4; }
-    #mode-toggle .seg { opacity: 0.45; transition: opacity 0.2s ease; }
-    #mode-toggle .seg.active { opacity: 1; }
+    #mode-toggle .seg.active {
+      background: #fff;  /* filled circle */
+      color: #000;       /* black icon inside */
+    }
+    #mode-toggle .seg svg {
+      display: block;
+      width: 17px;
+      height: 17px;
+    }
+    #mode-toggle .seg svg path { fill: currentColor; }
   </style>
 </head>
 <body>
@@ -244,11 +253,13 @@
 
   <div id="focus-cursor"></div>
 
-  <div id="mode-toggle" data-mode="corridor">
-    <span class="seg active" data-seg="corridor">Коридор</span>
-    <span class="sep">·</span>
-    <span class="seg" data-seg="tiles">Плитки</span>
-    <span class="dot"></span>
+  <div id="mode-toggle" data-mode="corridor" title="Коридор / Плитки (T)">
+    <button class="seg active" data-seg="corridor" aria-label="Коридор">
+      <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14 6.5V12.5C14 12.7652 13.8946 13.0196 13.7071 13.2071C13.5196 13.3946 13.2652 13.5 13 13.5H3C2.73478 13.5 2.48043 13.3946 2.29289 13.2071C2.10536 13.0196 2 12.7652 2 12.5V6.5C2 6.23478 2.10536 5.98043 2.29289 5.79289C2.48043 5.60536 2.73478 5.5 3 5.5H13C13.2652 5.5 13.5196 5.60536 13.7071 5.79289C13.8946 5.98043 14 6.23478 14 6.5ZM3.5 4.5H12.5C12.6326 4.5 12.7598 4.44732 12.8536 4.35355C12.9473 4.25979 13 4.13261 13 4C13 3.86739 12.9473 3.74021 12.8536 3.64645C12.7598 3.55268 12.6326 3.5 12.5 3.5H3.5C3.36739 3.5 3.24021 3.55268 3.14645 3.64645C3.05268 3.74021 3 3.86739 3 4C3 4.13261 3.05268 4.25979 3.14645 4.35355C3.24021 4.44732 3.36739 4.5 3.5 4.5ZM4.5 2.5H11.5C11.6326 2.5 11.7598 2.44732 11.8536 2.35355C11.9473 2.25979 12 2.13261 12 2C12 1.86739 11.9473 1.74021 11.8536 1.64645C11.7598 1.55268 11.6326 1.5 11.5 1.5H4.5C4.36739 1.5 4.24021 1.55268 4.14645 1.64645C4.05268 1.74021 4 1.86739 4 2C4 2.13261 4.05268 2.25979 4.14645 2.35355C4.24021 2.44732 4.36739 2.5 4.5 2.5Z"/></svg>
+    </button>
+    <button class="seg" data-seg="tiles" aria-label="Плитки">
+      <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M2.75 2C2.55109 2 2.36032 2.07902 2.21967 2.21967C2.07902 2.36032 2 2.55109 2 2.75V4.25C2 4.44891 2.07902 4.63968 2.21967 4.78033C2.36032 4.92098 2.55109 5 2.75 5H6.5C6.69891 5 6.88968 4.92098 7.03033 4.78033C7.17098 4.63968 7.25 4.44891 7.25 4.25V2.75C7.25 2.55109 7.17098 2.36032 7.03033 2.21967C6.88968 2.07902 6.69891 2 6.5 2H2.75ZM2.75 6.5C2.55109 6.5 2.36032 6.57902 2.21967 6.71967C2.07902 6.86032 2 7.05109 2 7.25V8.75C2 8.94891 2.07902 9.13968 2.21967 9.28033C2.36032 9.42098 2.55109 9.5 2.75 9.5H6.5C6.69891 9.5 6.88968 9.42098 7.03033 9.28033C7.17098 9.13968 7.25 8.94891 7.25 8.75V7.25C7.25 7.05109 7.17098 6.86032 7.03033 6.71967C6.88968 6.57902 6.69891 6.5 6.5 6.5H2.75ZM2.75 11C2.55109 11 2.36032 11.079 2.21967 11.2197C2.07902 11.3603 2 11.5511 2 11.75V13.25C2 13.4489 2.07902 13.6397 2.21967 13.7803C2.36032 13.921 2.55109 14 2.75 14H6.5C6.69891 14 6.88968 13.921 7.03033 13.7803C7.17098 13.6397 7.25 13.4489 7.25 13.25V11.75C7.25 11.5511 7.17098 11.3603 7.03033 11.2197C6.88968 11.079 6.69891 11 6.5 11H2.75ZM9.5 2C9.30109 2 9.11032 2.07902 8.96967 2.21967C8.82902 2.36032 8.75 2.55109 8.75 2.75V4.25C8.75 4.44891 8.82902 4.63968 8.96967 4.78033C9.11032 4.92098 9.30109 5 9.5 5H13.25C13.4489 5 13.6397 4.92098 13.7803 4.78033C13.921 4.63968 14 4.44891 14 4.25V2.75C14 2.55109 13.921 2.36032 13.7803 2.21967C13.6397 2.07902 13.4489 2 13.25 2H9.5ZM9.5 6.5C9.30109 6.5 9.11032 6.57902 8.96967 6.71967C8.82902 6.86032 8.75 7.05109 8.75 7.25V8.75C8.75 8.94891 8.82902 9.13968 8.96967 9.28033C9.11032 9.42098 9.30109 9.5 9.5 9.5H13.25C13.4489 9.5 13.6397 9.42098 13.7803 9.28033C13.921 9.13968 14 8.94891 14 8.75V7.25C14 7.05109 13.921 6.86032 13.7803 6.71967C13.6397 6.57902 13.4489 6.5 13.25 6.5H9.5Z"/></svg>
+    </button>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
