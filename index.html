@@ -179,6 +179,47 @@
     body.focused {
       cursor: none;
     }
+
+    /* ===== Mode toggle (corridor / tiles) ===== */
+    #mode-toggle {
+      position: fixed;
+      top: 22px;
+      right: 22px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(4px);
+      color: rgba(220, 220, 220, 0.85);
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+    }
+    #mode-toggle:hover {
+      border-color: rgba(255, 255, 255, 0.5);
+      background: rgba(0, 0, 0, 0.55);
+    }
+    #mode-toggle .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.35);
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    #mode-toggle[data-mode="tiles"] .dot {
+      background: #ffd166;
+      box-shadow: 0 0 8px rgba(255, 209, 102, 0.8);
+    }
+    #mode-toggle .sep { opacity: 0.4; }
+    #mode-toggle .seg { opacity: 0.45; transition: opacity 0.2s ease; }
+    #mode-toggle .seg.active { opacity: 1; }
   </style>
 </head>
 <body>
@@ -202,6 +243,13 @@
   </div>
 
   <div id="focus-cursor"></div>
+
+  <div id="mode-toggle" data-mode="corridor">
+    <span class="seg active" data-seg="corridor">Коридор</span>
+    <span class="sep">·</span>
+    <span class="seg" data-seg="tiles">Плитки</span>
+    <span class="dot"></span>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="images.js"></script>
@@ -300,10 +348,28 @@
       card.mesh.scale.y = card.aspect;           // base height = width * aspect
     }
 
-    // ===== Scroll input + stable smoothing (camera goes deeper) =====
+    // ===== Mode switch: corridor (0) <-> tiles (1) =====
+    let mode = 'corridor';
+    let blend = 0;
+    let blendTarget = 0;
+    const BLEND_SPEED = 2.2;
+    const camLook = new THREE.Vector3();
+    const camLookV = new THREE.Vector3();
+    const camLookP = new THREE.Vector3();
+
+    // Tiles (vertical 2-column tape) constants
+    const TILE_COL_SPREAD = 2.2;
+    const TILE_ROW_GAP = 4.4;
+    const TILE_CAM_Z = 9;
+    const TILE_VIEW = 26;
+    const TILE_PERIOD_Y = (NUM_CARDS / 2) * TILE_ROW_GAP;
+
+    // ===== Scroll input + stable smoothing (camera goes deeper / tape scrolls) =====
     let target = 0;
     let mid = 0;
     let depth = 0;
+    let tileScroll = 0;
+    let tileScrollTarget = 0;
     let prevTime = performance.now();
 
     const WHEEL_SPEED = 0.032;
@@ -315,12 +381,19 @@
       if (target > 100000) target = 100000;
     }
 
+    function addTileScrollInput(d) {
+      tileScrollTarget += d;
+      if (tileScrollTarget > 200000) tileScrollTarget = 200000;
+      if (tileScrollTarget < -200000) tileScrollTarget = -200000;
+    }
+
     window.addEventListener('wheel', (e) => {
       e.preventDefault();
       let d = e.deltaY;
       if (e.deltaMode === 1) d *= 33;
       else if (e.deltaMode === 2) d *= window.innerHeight;
-      addScrollInput(d * WHEEL_SPEED);
+      if (mode === 'tiles') addTileScrollInput(d * WHEEL_SPEED * 2);
+      else addScrollInput(d * WHEEL_SPEED);
     }, { passive: false });
 
     let lastTouchY = null;
@@ -330,7 +403,8 @@
     window.addEventListener('touchmove', (e) => {
       e.preventDefault();
       if (lastTouchY !== null) {
-        addScrollInput((lastTouchY - e.touches[0].clientY) * TOUCH_SPEED);
+        if (mode === 'tiles') addTileScrollInput((lastTouchY - e.touches[0].clientY) * TOUCH_SPEED * 2);
+        else addScrollInput((lastTouchY - e.touches[0].clientY) * TOUCH_SPEED);
       }
       lastTouchY = e.touches[0].clientY;
     }, { passive: false });
@@ -396,16 +470,21 @@
       if (!hit) return;
       focusCard = hit;
       prevTarget = target;
-      // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
-      const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
-      let cz = hit.baseline + n * LOOP;
-      while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
-      let dTarget = -cz - 6.5;
-      // If the card is already closer than 6.5 units, don't travel backward / don't spring.
-      // Clamp the target so the camera never reverses past its current depth.
-      if (dTarget < depth) dTarget = depth;
-      focusDepthTarget = dTarget;
-      target = depth;
+      if (mode === 'corridor') {
+        // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
+        const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
+        let cz = hit.baseline + n * LOOP;
+        while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
+        let dTarget = -cz - 6.5;
+        // If the card is already closer than 6.5 units, don't travel backward / don't spring.
+        // Clamp the target so the camera never reverses past its current depth.
+        if (dTarget < depth) dTarget = depth;
+        focusDepthTarget = dTarget;
+        target = depth;
+      } else {
+        // Tiles: keep the camera in place, focus is a pure scale-up in the tape.
+        focusDepthTarget = depth;
+      }
       const info = FOCUS_ITEMS[hit.index % FOCUS_ITEMS.length];
       focusTitle.textContent = info.title;
       focusText.textContent = info.text;
@@ -423,13 +502,42 @@
       focusPanel.classList.remove('visible');
       document.body.classList.remove('focused');
       focusCursorEl.classList.remove('focus');
-      if (depth < 25) hintEl.style.opacity = 1;
+      if (mode === 'corridor' && depth < 25) hintEl.style.opacity = 1;
     }
 
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#mode-toggle')) return;
       if (focusCard) { unfocus(); return; }
       focusMode();
     });
+
+    // ===== Mode toggle button + hotkey (T) =====
+    const modeToggle = document.getElementById('mode-toggle');
+    const modeSegs = modeToggle.querySelectorAll('.seg');
+    function applyModeUI() {
+      modeToggle.setAttribute('data-mode', mode);
+      modeSegs.forEach(s => s.classList.toggle('active', s.dataset.seg === mode));
+    }
+    function switchMode(next) {
+      if (next === mode) return;
+      if (focusCard) unfocus();
+      mode = next;
+      blendTarget = mode === 'tiles' ? 1 : 0;
+      hintEl.style.display = mode === 'tiles' ? 'none' : '';
+      applyModeUI();
+    }
+    modeToggle.addEventListener('click', () => {
+      switchMode(mode === 'corridor' ? 'tiles' : 'corridor');
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyT' || e.code === 'Tab') {
+        e.preventDefault();
+        switchMode(mode === 'corridor' ? 'tiles' : 'corridor');
+      } else if (e.code === 'Escape' && focusCard) {
+        unfocus();
+      }
+    });
+    applyModeUI();
 
     const update = () => {
       const now = performance.now();
@@ -447,10 +555,10 @@
         othersT = Math.max(0, othersT - dt * 1.5);
       }
 
-      // Camera travel: normally follow scroll target with the usual cascade.
-      // While focusing, glide straight to the card's depth with a single damped step
-      // (no mid/depth cascade → no overshoot / no "rope" pull-back).
-      if (focusCard) {
+      // Blend the two layouts; the corridor keeps its classic cascade while blending,
+      // and its focus-dive only applies while we're still on the corridor side.
+      const inCorridor = blend < 0.5;
+      if (focusCard && inCorridor) {
         depth += (focusDepthTarget - depth) * (1 - Math.exp(-dt * 3.2));
         mid = depth;
         target = depth;
@@ -459,24 +567,35 @@
         depth += (mid - depth) * (1 - Math.exp(-dt * 4));
       }
 
+      // Smooth the mode transition and the vertical tape scroll
+      blend += (blendTarget - blend) * (1 - Math.exp(-dt * BLEND_SPEED));
+      tileScroll += (tileScrollTarget - tileScroll) * (1 - Math.exp(-dt * 6));
+
       const z = -depth;
+      // The tiles tape lives on the corridor's current depth plane, so switching
+      // modes only steps the camera back a bit instead of flying across the whole corridor.
+      const tilePlaneZ = z;
+      const camY = 1.7 + (tileScroll - 1.7) * blend;
+      const camZ = z + TILE_CAM_Z * blend;
+      camera.position.set(0, camY, camZ);
+      const camFrom = camLookV.set(0, camY, camZ - 10);
+      const camTo = camLookP.set(0, tileScroll, tilePlaneZ);
+      camLook.lerpVectors(camFrom, camTo, blend);
+      camera.lookAt(camLook);
 
-      // Corridor: eye level, facing straight down the axis.
-      camera.position.set(0, 1.7, z);
-      camera.rotation.set(0, 0, 0);
-
-      // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
-      // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
-      // slips behind, fading into the fog — so the corridor never runs out of lamps.
+      // Corridor lamps fade out as we move to the tiles view
+      const showLights = blend < 0.5;
       lights.forEach(L => {
         let lz = L.base + Math.floor((z - L.base) / LIGHT_LOOP) * LIGHT_LOOP;
         while (lz - z > LIGHT_LOOP) lz -= LIGHT_LOOP;
         L.light.position.set(0, corridorHeight - 0.4, lz);
         L.bulb.position.set(0, corridorHeight - 0.4, lz);
+        L.light.visible = showLights;
+        L.bulb.visible = showLights;
       });
 
-      // Place cards. Camera drives to the focused card; it slides to centre & grows,
-        // all other cards simply dissolve (no sideways drift).
+      // Place cards. Every card gets a corridor position and a tiles position;
+      // `blend` interpolates between them, so the re-arrangement is one smooth shot.
       cards.forEach(card => {
         const n = Math.floor((z - card.baseline) / LOOP);
         let cz = card.baseline + n * LOOP;
@@ -486,23 +605,48 @@
         const focusing = card === focusCard;
         const t = focusing ? focusT : focusCard ? othersT : 0;
 
-        let x = card.x, y = card.y, zz = cz, sc = 1, op = 1;
-
-        if (focusing) {
+        // ---- Corridor placement ----
+        let cx = card.x, cy = card.y, czz = cz, csc = 1, cop = 1;
+        if (focusing && inCorridor) {
           // The chosen card glides to the screen centre & grows, stays at its slot depth
-          x = 0 * t;
-          y = 1.8 * t + card.y * (1 - t);
-          zz = cz;
-          sc = 1 + 0.5 * t;
-          op = 1;
-        } else if (focusCard) {
-          // All other cards fade out (dissolve faster than the camera closes in)
-          x = card.x;
-          y = card.y;
-          zz = cz;
-          sc = 1;
-          op = 1 - t;
+          cx = 0 * t;
+          cy = 1.8 * t + card.y * (1 - t);
+          csc = 1 + 0.5 * t;
+          cop = 1;
+        } else if (focusCard && inCorridor) {
+          cx = card.x;
+          cy = card.y;
+          csc = 1;
+          cop = 1 - t;
         }
+
+        // ---- Tiles placement (2 columns, vertical tape) ----
+        const col = card.index % 2;
+        const r0 = Math.floor(card.index / 2);
+        let ty = -(r0) * TILE_ROW_GAP + Math.floor((tileScroll + r0 * TILE_ROW_GAP) / TILE_PERIOD_Y) * TILE_PERIOD_Y;
+        while (ty - tileScroll < -TILE_VIEW) ty += TILE_PERIOD_Y;
+        while (ty - tileScroll > TILE_VIEW) ty -= TILE_PERIOD_Y;
+        let tx = col === 0 ? -TILE_COL_SPREAD : TILE_COL_SPREAD;
+        let tz = tilePlaneZ, tsc = 1, top = 1;
+        if (focusing && !inCorridor) {
+          // Tile focus: the card moves to the exact screen centre and grows in place
+          tx = 0;
+          ty = tileScroll;
+          tz = tilePlaneZ;
+          tsc = 1 + 0.5 * t;
+          top = 1;
+        } else if (focusCard && !inCorridor) {
+          tx = col === 0 ? -TILE_COL_SPREAD : TILE_COL_SPREAD;
+          tsc = 1;
+          top = 1 - t;
+        }
+
+        // ---- Blend the two placements ----
+        let x = cx + (tx - cx) * blend;
+        let y = cy + (ty - cy) * blend;
+        let zz = czz + (tz - czz) * blend;
+        let sc = csc + (tsc - csc) * blend;
+        let op = cop + (top - cop) * blend;
 
         // Parallax: the hovered card leans toward the cursor like it's glued to it.
         const isHover = card === hoverCard && !focusCard;
@@ -511,7 +655,7 @@
         const prT = isHover ? mouse.x * 0.12 : 0;
         card.parX += (pxT - card.parX) * (1 - Math.exp(-dt * 10));
         card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
-        x += card.parX;
+        x += card.parX * (1 - blend);
 
         // Fully hide cards so they can't double-draw or leave halos
         card.mesh.visible = op > 0.02;
@@ -520,15 +664,15 @@
         card.mesh.scale.set(sc, sc * card.aspect, sc);
         card.mesh.material.opacity = Math.max(0, op);
         card.mesh.material.transparent = true;
-        card.mesh.rotation.y = focusing ? 0 : card.parRot;
+        card.mesh.rotation.y = focusing ? 0 : card.parRot * (1 - blend);
         card.mesh.rotation.x = 0;
         card.mesh.rotation.z = 0;
       });
 
       const prog = Math.min(1, depth / 25);
-      if (prog > 0.01) {
-        if (!focusCard) titleCard.style.opacity = 1 - prog;
-        if (!focusCard) hintEl.style.opacity = 1 - prog * 1.5;
+      if (prog > 0.01 || blend > 0.01) {
+        if (!focusCard) titleCard.style.opacity = (1 - prog) * (1 - blend);
+        if (!focusCard) hintEl.style.opacity = (1 - prog * 1.5) * (1 - blend);
       }
 
       renderer.render(scene, camera);
