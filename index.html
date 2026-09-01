@@ -268,7 +268,7 @@
     </button>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="three.min.js"></script>
   <script src="images.js"></script>
   <script>
     const corridorHeight = 6;
@@ -564,11 +564,11 @@
 
       // Ease the focus transition (1 = focused, 0 = normal) and the neighbours fade
       if (focusCard) {
-        focusT = Math.min(1, focusT + dt * 1.5);
+        focusT = Math.min(1, focusT + dt * 2.8);
         // neighbours dissolve a bit faster so they're gone while camera still closes in
         othersT = Math.min(1, othersT + dt * 3.2);
       } else {
-        focusT = Math.max(0, focusT - dt * 1.5);
+        focusT = Math.max(0, focusT - dt * 2.8);
         othersT = Math.max(0, othersT - dt * 1.5);
       }
 
