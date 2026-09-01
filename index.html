@@ -162,12 +162,12 @@
     #focus-cursor::after {
       transform: translate(-50%, -50%) rotate(90deg);
     }
-    /* hover on a card -> plus sign */
+    /* hover on a card → plus sign */
     #focus-cursor.hover::before,
     #focus-cursor.hover::after {
       opacity: 1;
     }
-    /* focused -> the plus smoothly rotates into a multiplication cross */
+    /* focused → the plus smoothly rotates into a multiplication cross */
     #focus-cursor.focus::before {
       transform: translate(-50%, -50%) rotate(45deg);
       opacity: 1;
@@ -224,22 +224,22 @@
   </div>
 
   <div id="title-card">
-    <h1>╨Ь╨Р╨Э╨г╨д╨Р╨Ъ╨в╨г╨а╨Р</h1>
-    <p>╤Б╨║╤А╨╛╨╗╨╗╤М тАФ ╨╝╤Л ╨╕╨┤╤С╨╝ ╨▓╨│╨╗╤Г╨▒╤М</p>
+    <h1>МАНУФАКТУРА</h1>
+    <p>скролль — мы идём вглубь</p>
   </div>
 
-  <div id="hint">╤Б╨║╤А╨╛╨╗╨╗</div>
+  <div id="hint">скролл</div>
 
   <div id="focus-panel">
-    <h2 id="focus-title">╨С╨╡╨╖ ╨╜╨░╨╖╨▓╨░╨╜╨╕╤П</h2>
-    <p id="focus-text">╨Ч╨┤╨╡╤Б╤М ╨▒╤Г╨┤╨╡╤В ╨╛╨┐╨╕╤Б╨░╨╜╨╕╨╡ ╤А╨░╨▒╨╛╤В╤Л. ╨Ъ╨╗╨╕╨║╨╜╨╕╤В╨╡ ╨╜╨░ ╨╗╤О╨▒╤Г╤О ╨║╨░╤А╤В╨╛╤З╨║╤Г ╨▓ ╨│╨░╨╗╨╡╤А╨╡╨╡, ╤З╤В╨╛╨▒╤Л ╤Г╨▓╨╕╨┤╨╡╤В╤М ╨╡╤С ╨║╤А╤Г╨┐╨╜╤Л╨╝ ╨┐╨╗╨░╨╜╨╛╨╝.</p>
+    <h2 id="focus-title">Без названия</h2>
+    <p id="focus-text">Здесь будет описание работы. Кликните на любую карточку в галерее, чтобы увидеть её крупным планом.</p>
   </div>
 
   <div id="focus-cursor"></div>
 
   <div id="mode-switch">
-    <button id="mode-corridor" class="active">╨Ъ╨╛╤А╨╕╨┤╨╛╤А</button>
-    <button id="mode-tiles">╨Я╨╗╨╕╤В╨║╨╕</button>
+    <button id="mode-corridor" class="active">Коридор</button>
+    <button id="mode-tiles">Плитки</button>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -302,13 +302,13 @@
     let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
-    // ===== Tiles mode: you simply flip a 2-column ribbon straight in front of you.
-    // The ribbon hangs as a flat wall on the corridor axis; the camera stays at eye
-    // level looking straight at it (no tilt, no iso) — like paging through a list. =====
-    const CAM_TILES_Y = 1.7;            // camera height = eye level on the ribbon centre
-    const CAM_TILES_Z = 0;              // camera stays on the axis, facing the ribbon
-    const CAM_TILES_PITCH = 0;          // no tilt
-    const CAM_TILES_YAW = 0;            // no diagonal
+    // ===== Tiles mode: an iso view of a two-column ribbon of works that you
+    // flip through vertically. The ribbon hangs as a flat wall; the camera looks
+    // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
+    const CAM_TILES_Y = 8.5;            // camera height above the ribbon centre (iso lean up)
+    const CAM_TILES_Z = 6;              // camera sits in front of the ribbon (z > ribbon)
+    const CAM_TILES_PITCH = -0.62;      // look down-forward at the ribbon (iso)
+    const CAM_TILES_YAW = 0.42;         // slight diagonal so it reads as isometric
     const LENTA_Z = -8;                 // depth plane the ribbon hangs on
     const LENTA_COLS = 2;               // two columns of works
     const LENTA_X = 2.6;                // half the gap between the two columns
@@ -428,7 +428,7 @@
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
       focusCursorEl.style.left = e.clientX + 'px';
       focusCursorEl.style.top = e.clientY + 'px';
-      // Ring -> plus when hovering a card (unless the focus cross is active)
+      // Ring → plus when hovering a card (unless the focus cross is active)
       if (!focusCard) {
         hoverCard = cardUnderCursor();
         focusCursorEl.classList.toggle('hover', !!hoverCard);
@@ -463,11 +463,11 @@
     const focusTitle = document.getElementById('focus-title');
     const focusText = document.getElementById('focus-text');
     const FOCUS_ITEMS = [
-      { title: '╨е╨╛╨╗╤Б╤В тДЦ 1', text: '╨а╨░╨▒╨╛╤В╨░ ╨╛╤В╨║╤А╤Л╨▓╨░╨╡╤В ╤Н╨║╤Б╨┐╨╛╨╖╨╕╤Ж╨╕╤О ╨╝╨░╨╜╤Г╤Д╨░╨║╤В╤Г╤А╤Л: ╨┐╤А╨╕╨│╨╗╤Г╤И╤С╨╜╨╜╨░╤П ╨┐╨░╨╗╨╕╤В╤А╨░ ╨╕ ╨┐╨╗╨╛╤В╨╜╨░╤П ╤Д╨░╨║╤В╤Г╤А╨░ ╨╜╨░╨┐╨╛╨╝╨╕╨╜╨░╤О╤В ╨╛ ╨╝╨░╤В╨╡╤А╨╕╨░╨╗╤М╨╜╨╛╤Б╤В╨╕ ╤А╨╡╨╝╨╡╤Б╨╗╨░.' },
-      { title: '╨е╨╛╨╗╤Б╤В тДЦ 2', text: '╨Ъ╨╛╨╝╨┐╨╛╨╖╨╕╤Ж╨╕╤П ╤Б╤В╤А╨╛╨╕╤В╤Б╤П ╨╜╨░ ╨║╨╛╨╜╤В╤А╨░╤Б╤В╨╡ ╤Б╨▓╨╡╤В╨░ ╨╕ ╤В╨╡╨╜╨╕ тАФ ╨║╨╗╨░╤Б╤Б╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨┐╤А╨╕╤С╨╝, ╨┤╨╛╨▓╨╡╨┤╤С╨╜╨╜╤Л╨╣ ╨┤╨╛ ╤В╨╛╨╜╨║╨╛╨╣ ╨┤╨╡╤В╨░╨╗╨╕.' },
-      { title: '╨е╨╛╨╗╤Б╤В тДЦ 3', text: '╨а╨╕╤В╨╝ ╨╗╨╕╨╜╨╕╨╣ ╨╕ ╨┐╤П╤В╨╡╨╜ ╤А╨░╤Б╤В╨▓╨╛╤А╤П╨╡╤В╤Б╤П ╨▓ ╨│╨╗╤Г╨▒╨╕╨╜╨╡ ╨┐╨╛╨╗╨╛╤В╨╜╨░, ╨┐╤А╨╕╨│╨╗╨░╤И╨░╤П ╨╖╨░╨┤╨╡╤А╨╢╨░╤В╤М╤Б╤П ╤Г ╨║╨░╨╢╨┤╨╛╨╣ ╨┤╨╡╤В╨░╨╗╨╕.' },
-      { title: '╨е╨╛╨╗╤Б╤В тДЦ 4', text: '╨б╨╛╤З╨╡╤В╨░╨╜╨╕╨╡ ╨╖╨╡╨╝╨╗╨╕╤Б╤В╤Л╤Е ╨╛╤В╤В╨╡╨╜╨║╨╛╨▓ ╨┐╨╡╤А╨╡╨┤╨░╤С╤В ╤В╤С╨┐╨╗╤Г╤О, ╨┐╨╛╤З╤В╨╕ ╨╛╤Б╤П╨╖╨░╨╡╨╝╤Г╤О ╨░╤В╨╝╨╛╤Б╤Д╨╡╤А╤Г ╨╝╨░╤Б╤В╨╡╤А╤Б╨║╨╛╨╣.' },
-      { title: '╨е╨╛╨╗╤Б╤В тДЦ 5', text: '╨б╨┤╨╡╤А╨╢╨░╨╜╨╜╨░╤П ╨│╨░╨╝╨╝╨░ ╨╕ ╤П╤Б╨╜╨░╤П ╨║╨╛╨╝╨┐╨╛╨╖╨╕╤Ж╨╕╤П ╨▓╨┐╨╕╤Б╤Л╨▓╨░╤О╤В ╤А╨░╨▒╨╛╤В╤Г ╨▓ ╤Б╤В╤А╨╛╨│╨╕╨╣ ╤А╤П╨┤ ╨╝╨░╨╜╤Г╤Д╨░╨║╤В╤Г╤А╨╜╨╛╨╣ ╨║╨╛╨╗╨╗╨╡╨║╤Ж╨╕╨╕.' }
+      { title: 'Холст № 1', text: 'Работа открывает экспозицию мануфактуры: приглушённая палитра и плотная фактура напоминают о материальности ремесла.' },
+      { title: 'Холст № 2', text: 'Композиция строится на контрасте света и тени — классический приём, доведённый до тонкой детали.' },
+      { title: 'Холст № 3', text: 'Ритм линий и пятен растворяется в глубине полотна, приглашая задержаться у каждой детали.' },
+      { title: 'Холст № 4', text: 'Сочетание землистых оттенков передаёт тёплую, почти осязаемую атмосферу мастерской.' },
+      { title: 'Холст № 5', text: 'Сдержанная гамма и ясная композиция вписывают работу в строгий ряд мануфактурной коллекции.' }
     ];
 
     let focusT = 0;
@@ -519,7 +519,7 @@
       focusMode();
     });
 
-    // ===== Mode switch: corridor walk <-> flat tile wall =====
+    // ===== Mode switch: corridor walk ⇄ flat tile wall =====
     const modeButtons = {
       corridor: document.getElementById('mode-corridor'),
       tiles: document.getElementById('mode-tiles')
@@ -560,7 +560,7 @@
 
       // Camera travel: normally follow scroll target with the usual cascade.
       // While focusing, glide straight to the card's depth with a single damped step
-      // (no mid/depth cascade -> no overshoot / no "rope" pull-back).
+      // (no mid/depth cascade → no overshoot / no "rope" pull-back).
       if (focusCard) {
         depth += (focusDepthTarget - depth) * (1 - Math.exp(-dt * 3.2));
         mid = depth;
@@ -588,7 +588,7 @@
         tilesScroll += (tilesScrollTarget - tilesScroll) * (1 - Math.exp(-dt * 6));
       }
 
-      // Blend the camera: corridor (eye level on the axis) <-> iso view of the ribbon.
+      // Blend the camera: corridor (eye level on the axis) ⇄ iso view of the ribbon.
       camera.position.x = 0;
       camera.position.y = 1.7 * (1 - camModeBlend) + CAM_TILES_Y * camModeBlend;
       camera.position.z = z * (1 - camModeBlend) + CAM_TILES_Z * camModeBlend;
@@ -596,7 +596,7 @@
       camera.rotation.y = CAM_TILES_YAW * camModeBlend;
       camera.rotation.z = 0;
 
-      // Red->white marker lights: world-anchored endless row that scrolls past as you travel.
+      // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
       // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
       // slips behind, fading into the fog — so the corridor never runs out of lamps.
       lights.forEach(L => {
