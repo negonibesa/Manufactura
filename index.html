@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manufactura</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { overflow: hidden; height: 100%; background: #000; font-family: 'Courier New', monospace; }
+    canvas { display: block; }
+
+    #overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    #vignette {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.85) 100%);
+    }
+
+    #hint {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(210, 210, 210, 0.6);
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      z-index: 20;
+      pointer-events: none;
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.8; }
+    }
+
+    #title-card {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+
+    #title-card h1 {
+      font-size: 48px;
+      color: #cfcfcf;
+      letter-spacing: 12px;
+      text-transform: uppercase;
+      text-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+      margin-bottom: 10px;
+    }
+
+    #title-card p {
+      font-size: 14px;
+      color: rgba(180, 180, 180, 0.4);
+      letter-spacing: 6px;
+    }
+
+    #flicker {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #000;
+      z-index: 25;
+      pointer-events: none;
+      opacity: 1;
+    }
+
+    #focus-panel {
+      position: fixed;
+      left: 50%;
+      top: 83%;
+      transform: translate(-50%, -50%);
+      width: min(86vw, 560px);
+      z-index: 30;
+      color: #ddd;
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      transform: translate(-50%, -50%) scale(0.92);
+    }
+
+    #focus-panel.visible {
+      pointer-events: auto;
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    #focus-title {
+      font-size: 18px;
+      letter-spacing: 4px;
+      color: #9a9a9a;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+    }
+
+    #focus-text {
+      font-size: 15px;
+      line-height: 1.7;
+      color: rgba(158, 158, 158, 0.9);
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    body {
+      cursor: none;
+    }
+
+    #focus-cursor {
+      position: fixed;
+      top: 0; left: 0;
+      width: 44px;
+      height: 44px;
+      margin: -22px 0 0 -22px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+      background: transparent;
+      mix-blend-mode: exclusion;
+      z-index: 40;
+      pointer-events: none;
+      opacity: 1;
+      transform: scale(0.7);
+      transition: transform 0.25s ease, opacity 0.2s ease;
+    }
+    /* slightly larger ring when hovering a card (and stays that size focused) */
+    #focus-cursor.hover,
+    #focus-cursor.focus {
+      transform: scale(1.0);
+    }
+    #focus-cursor::before,
+    #focus-cursor::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 20px; height: 2px;
+      background: rgba(255, 255, 255, 0.95);
+      opacity: 0;
+      transition: transform 0.28s ease-out, opacity 0.45s ease-out;
+    }
+    #focus-cursor::before {
+      transform: translate(-50%, -50%) rotate(0deg);
+    }
+    #focus-cursor::after {
+      transform: translate(-50%, -50%) rotate(90deg);
+    }
+    /* hover on a card → plus sign */
+    #focus-cursor.hover::before,
+    #focus-cursor.hover::after {
+      opacity: 1;
+    }
+    /* focused → the plus smoothly rotates into a multiplication cross */
+    #focus-cursor.focus::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+      opacity: 1;
+    }
+    #focus-cursor.focus::after {
+      transform: translate(-50%, -50%) rotate(135deg);
+      opacity: 1;
+    }
+    body.focused {
+      cursor: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="flicker"></div>
+
+  <div id="overlay">
+    <div id="vignette"></div>
+  </div>
+
+  <div id="title-card">
+    <h1>МАНУФАКТУРА</h1>
+    <p>скролль — мы идём вглубь</p>
+  </div>
+
+  <div id="hint">скролл</div>
+
+  <div id="focus-panel">
+    <h2 id="focus-title">Без названия</h2>
+    <p id="focus-text">Здесь будет описание работы. Кликните на любую карточку в галерее, чтобы увидеть её крупным планом.</p>
+  </div>
+
+  <div id="focus-cursor"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="images.js"></script>
+  <script>
+    const corridorHeight = 6;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050505);
+    scene.fog = new THREE.FogExp2(0x050505, 0.05);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.7, 0);
+    camera.lookAt(0, 1.7, -20);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.prepend(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0x333333, 0.35);
+    scene.add(ambientLight);
+
+    const lights = [];
+    const LIGHT_STEP = 8;           // bulb spacing along the corridor
+    const LIGHT_LOOP = 40;          // bulb sweep span (8 * 20 positions)
+    for (let i = 0; i < 20; i++) {
+      const light = new THREE.PointLight(0xffffff, 0.55, 26);
+      scene.add(light);
+      const bulb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xdcdcdc })
+      );
+      bulb.position.copy(light.position);
+      scene.add(bulb);
+      lights.push({ light, bulb, base: -(i + 1) * LIGHT_STEP });
+    }
+
+    // ===== Cards on the sides, facing the traveler =====
+    const loader = new THREE.TextureLoader();
+    const photoTextures = IMAGE_DATA.map(uri => {
+      const t = loader.load(uri);
+      t.encoding = THREE.sRGBEncoding;
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return t;
+    });
+
+    const CARD_GAP = 4;
+    const NUM_CARDS = 16;
+    const CARD_BASE = 2.3;         // base width of every card
+    const SIDE_SPREAD = 2.4;
+    const LOOP = NUM_CARDS * CARD_GAP;
+
+    const cards = [];
+    for (let i = 0; i < NUM_CARDS; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const tex = photoTextures[i % photoTextures.length];
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        color: 0xffffff,
+        toneMapped: false,
+        transparent: true,
+        depthWrite: false,
+        opacity: 1
+      });
+      // Geometry is created square; the real aspect ratio is applied via scale.y once
+      // the texture loads, so every card keeps its true picture format (portrait/landscape/square).
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_BASE, CARD_BASE), mat);
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+      const card = {
+        mesh,
+        baseline: -(i + 1) * CARD_GAP,
+        x: side * SIDE_SPREAD,
+        y: 1.7,
+        index: i,
+        aspect: 1,
+        zoom: 1
+      };
+      // Apply the real aspect as soon as the image dimensions are known
+      tex.image ? applyAspect(card) : (() => {
+        const check = setInterval(() => {
+          if (tex.image) { clearInterval(check); applyAspect(card); }
+        }, 30);
+      })();
+      mesh.userData.card = card;
+      cards.push(card);
+    }
+
+    function applyAspect(card) {
+      const img = card.mesh.material.map.image;
+      if (!img || !img.width || !img.height) return;
+      card.aspect = img.height / img.width;      // >1 portrait, <1 landscape
+      card.mesh.scale.y = card.aspect;           // base height = width * aspect
+    }
+
+    // ===== Scroll input + stable smoothing (camera goes deeper) =====
+    let target = 0;
+    let mid = 0;
+    let depth = 0;
+    let prevTime = performance.now();
+
+    const WHEEL_SPEED = 0.032;
+    const TOUCH_SPEED = 0.1;
+
+    function addScrollInput(d) {
+      target += d;
+      if (target < 0) target = 0;
+      if (target > 100000) target = 100000;
+    }
+
+    window.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      let d = e.deltaY;
+      if (e.deltaMode === 1) d *= 33;
+      else if (e.deltaMode === 2) d *= window.innerHeight;
+      addScrollInput(d * WHEEL_SPEED);
+    }, { passive: false });
+
+    let lastTouchY = null;
+    window.addEventListener('touchstart', (e) => {
+      lastTouchY = e.touches[0].clientY;
+    }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (lastTouchY !== null) {
+        addScrollInput((lastTouchY - e.touches[0].clientY) * TOUCH_SPEED);
+      }
+      lastTouchY = e.touches[0].clientY;
+    }, { passive: false });
+    window.addEventListener('touchend', () => {
+      lastTouchY = null;
+    }, { passive: true });
+
+    const titleCard = document.getElementById('title-card');
+    const hintEl = document.getElementById('hint');
+
+    // ===== Click-to-focus: camera dives to the card, others dissolve =====
+    const mouse = new THREE.Vector2();
+    const focusCursorEl = document.getElementById('focus-cursor');
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      focusCursorEl.style.left = e.clientX + 'px';
+      focusCursorEl.style.top = e.clientY + 'px';
+      // Ring → plus when hovering a card (unless the focus cross is active)
+      if (!focusCard) {
+        hoverCard = cardUnderCursor();
+        focusCursorEl.classList.toggle('hover', !!hoverCard);
+      } else {
+        hoverCard = null;
+      }
+    }, false);
+
+    // Pick exactly the card under the cursor via raycast against the card planes.
+    const raycaster = new THREE.Raycaster();
+    function cardUnderCursor() {
+      raycaster.setFromCamera(mouse, camera);
+      // Only cards right ahead of the camera can be hit
+      const candidates = cards.filter(c => {
+        const cdz = c.mesh.position.z - camera.position.z;
+        return cdz < 0 && cdz > -14.001 && c.mesh.visible;
+      });
+      if (!candidates.length) return null;
+      const meshes = candidates.map(c => c.mesh);
+      const hits = raycaster.intersectObjects(meshes, false);
+      return hits.length ? hits[0].object.userData.card : null;
+    }
+
+    const focusPanel = document.getElementById('focus-panel');
+    const focusTitle = document.getElementById('focus-title');
+    const focusText = document.getElementById('focus-text');
+    const FOCUS_ITEMS = [
+      { title: 'Холст № 1', text: 'Работа открывает экспозицию мануфактуры: приглушённая палитра и плотная фактура напоминают о материальности ремесла.' },
+      { title: 'Холст № 2', text: 'Композиция строится на контрасте света и тени — классический приём, доведённый до тонкой детали.' },
+      { title: 'Холст № 3', text: 'Ритм линий и пятен растворяется в глубине полотна, приглашая задержаться у каждой детали.' },
+      { title: 'Холст № 4', text: 'Сочетание землистых оттенков передаёт тёплую, почти осязаемую атмосферу мастерской.' },
+      { title: 'Холст № 5', text: 'Сдержанная гамма и ясная композиция вписывают работу в строгий ряд мануфактурной коллекции.' }
+    ];
+
+    let focusT = 0;
+    let othersT = 0;
+    let focusCard = null;
+    let hoverCard = null;
+    let focusDepthTarget = 0;
+    let prevTarget = 0;
+
+    function focusMode() {
+      const hit = cardUnderCursor();
+      if (!hit) return;
+      focusCard = hit;
+      prevTarget = target;
+      // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
+      const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
+      let cz = hit.baseline + n * LOOP;
+      while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
+      let dTarget = -cz - 6.5;
+      // If the card is already closer than 6.5 units, don't travel backward / don't spring.
+      // Clamp the target so the camera never reverses past its current depth.
+      if (dTarget < depth) dTarget = depth;
+      focusDepthTarget = dTarget;
+      target = depth;
+      const info = FOCUS_ITEMS[hit.index % FOCUS_ITEMS.length];
+      focusTitle.textContent = info.title;
+      focusText.textContent = info.text;
+      focusPanel.classList.add('visible');
+      hintEl.style.opacity = 0;
+      document.body.classList.add('focused');
+      focusCursorEl.classList.add('focus');
+      focusCursorEl.classList.remove('hover');
+    }
+
+    function unfocus() {
+      if (focusCard) target = prevTarget || depth;
+      focusCard = null;
+      focusDepthTarget = 0;
+      focusPanel.classList.remove('visible');
+      document.body.classList.remove('focused');
+      focusCursorEl.classList.remove('focus');
+      if (depth < 25) hintEl.style.opacity = 1;
+    }
+
+    document.addEventListener('click', () => {
+      if (focusCard) { unfocus(); return; }
+      focusMode();
+    });
+
+    const update = () => {
+      const now = performance.now();
+      let dt = (now - prevTime) / 1000;
+      prevTime = now;
+      if (dt > 0.05) dt = 0.05;
+
+      // Ease the focus transition (1 = focused, 0 = normal) and the neighbours fade
+      if (focusCard) {
+        focusT = Math.min(1, focusT + dt * 1.5);
+        // neighbours dissolve a bit faster so they're gone while camera still closes in
+        othersT = Math.min(1, othersT + dt * 3.2);
+      } else {
+        focusT = Math.max(0, focusT - dt * 1.5);
+        othersT = Math.max(0, othersT - dt * 1.5);
+      }
+
+      // Camera travel: normally follow scroll target with the usual cascade.
+      // While focusing, glide straight to the card's depth with a single damped step
+      // (no mid/depth cascade → no overshoot / no "rope" pull-back).
+      if (focusCard) {
+        depth += (focusDepthTarget - depth) * (1 - Math.exp(-dt * 3.2));
+        mid = depth;
+        target = depth;
+      } else {
+        mid += (target - mid) * (1 - Math.exp(-dt * 6));
+        depth += (mid - depth) * (1 - Math.exp(-dt * 4));
+      }
+
+      const z = -depth;
+      camera.position.z = z;
+      camera.rotation.set(0, 0, 0);
+
+      // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
+      // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
+      // slips behind, fading into the fog — so the corridor never runs out of lamps.
+      lights.forEach(L => {
+        let lz = L.base + Math.floor((z - L.base) / LIGHT_LOOP) * LIGHT_LOOP;
+        while (lz - z > LIGHT_LOOP) lz -= LIGHT_LOOP;
+        L.light.position.set(0, corridorHeight - 0.4, lz);
+        L.bulb.position.set(0, corridorHeight - 0.4, lz);
+      });
+
+      // Place cards. Camera drives to the focused card; it slides to centre & grows,
+        // all other cards simply dissolve (no sideways drift).
+      cards.forEach(card => {
+        const n = Math.floor((z - card.baseline) / LOOP);
+        let cz = card.baseline + n * LOOP;
+        while (cz - z < -30) cz += LOOP;
+        while (cz - z > 30) cz -= LOOP;
+
+        const focusing = card === focusCard;
+        const t = focusing ? focusT : focusCard ? othersT : 0;
+
+        let x = card.x, y = card.y, zz = cz, sc = 1, op = 1;
+
+        if (focusing) {
+          // The chosen card glides to the screen centre & grows, stays at its slot depth
+          x = 0 * t;
+          y = 1.8 * t + card.y * (1 - t);
+          zz = cz;
+          sc = 1 + 0.5 * t;
+          op = 1;
+        } else if (focusCard) {
+          // All other cards fade out (dissolve faster than the camera closes in)
+          x = card.x;
+          y = card.y;
+          zz = cz;
+          sc = 1;
+          op = 1 - t;
+        }
+
+        // Parallax: the hovered card leans toward the cursor like it's glued to it.
+        const isHover = card === hoverCard && !focusCard;
+        if (card.parX === undefined) { card.parX = 0; card.parRot = 0; }
+        const pxT = isHover ? mouse.x * 0.45 : 0;
+        const prT = isHover ? mouse.x * 0.12 : 0;
+        card.parX += (pxT - card.parX) * (1 - Math.exp(-dt * 10));
+        card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
+        x += card.parX;
+
+        // Fully hide cards so they can't double-draw or leave halos
+        card.mesh.visible = op > 0.02;
+        card.mesh.position.set(x, y, zz);
+        // Scale X/Z uniformly for the focus zoom; Y also holds the true picture aspect
+        card.mesh.scale.set(sc, sc * card.aspect, sc);
+        card.mesh.material.opacity = Math.max(0, op);
+        card.mesh.material.transparent = true;
+        card.mesh.rotation.y = focusing ? 0 : card.parRot;
+        card.mesh.rotation.z = 0;
+      });
+
+      const prog = Math.min(1, depth / 25);
+      if (prog > 0.01) {
+        if (!focusCard) titleCard.style.opacity = 1 - prog;
+        if (!focusCard) hintEl.style.opacity = 1 - prog * 1.5;
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(update);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    setTimeout(() => {
+      const flicker = document.getElementById('flicker');
+      flicker.style.transition = 'opacity 0.1s';
+      flicker.style.opacity = '0';
+      setTimeout(() => { flicker.style.display = 'none'; }, 200);
+    }, 800);
+
+    update();
+  </script>
+</body>
+</html>
