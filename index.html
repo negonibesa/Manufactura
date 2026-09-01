@@ -302,37 +302,39 @@
     let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
-    // ===== Tiles mode: an iso view of a two-column ribbon of works that you
-    // flip through vertically. The ribbon hangs as a flat wall; the camera looks
-    // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
-    const CAM_TILES_Y = 8.5;            // camera height above the ribbon centre (iso lean up)
-    const CAM_TILES_Z = 6;              // camera sits in front of the ribbon (z > ribbon)
-    const CAM_TILES_PITCH = -0.62;      // look down-forward at the ribbon (iso)
-    const CAM_TILES_YAW = 0.42;         // slight diagonal so it reads as isometric
-    const LENTA_Z = -8;                 // depth plane the ribbon hangs on
+    // ===== Tiles mode: an orthographic-looking front view of a two-column ribbon of
+    // works you flip through vertically. The camera sits square in front of the wall,
+    // no tilt (nothing perspective-y), and the ribbon is endless — works re-wrap top↔bottom
+    // as you scroll, so it never runs out. =====
+    const LENTA_Z = 0;                  // depth plane the ribbon hangs on (in front of camera)
     const LENTA_COLS = 2;               // two columns of works
-    const LENTA_X = 2.6;                // half the gap between the two columns
-    const LENTA_ROW_STEP = 4.2;         // vertical spacing between stacked works
-    const TILE_BASE = 1.0;              // mini size factor of ribbon tiles
+    const LENTA_X = 3.4;                // half the gap between the two columns
+    const LENTA_ROW_STEP = 5.0;         // vertical spacing between stacked works
+    const TILE_BASE = 3.2;              // size factor of ribbon tiles (fills the screen)
+    // An endless ribbon: the visible vertical span is wrapped across a long cycle, so
+    // scrolling never hits a beginning or end — the same collection loops forever.
+    const LENTA_CYCLE = LENTA_ROW_STEP * 26;
+    const CAM_TILES_Y = 0;              // camera at the ribbon's vertical centre, no lean
+    const CAM_TILES_Z = 12;             // distance in front of the ribbon wall
 
     // Scroll offset for flipping the ribbon (grows the farther you scroll down).
     let tilesScroll = 0;
     let tilesScrollTarget = 0;
 
-    // Placement of each work inside the 2-column ribbon, flipped by the scroll.
-    // When `blend` < 1 the ribbon has not fully assembled yet: everything crowds at
-    // the centre of the wall and spreads out only as the camera finishes the iso fly-in.
+    // Map any value into the centred band [-CYCLE/2, CYCLE/2) for endless wrapping.
+    function wrapBand(v, cyc) {
+      return ((v % cyc) + cyc) % cyc - cyc / 2;
+    }
+
+    // Placement of each work on the endless 2-column ribbon.
+    // `blend` < 1 = still assembling (works crowd the centre and fan out as you zoom to the wall).
     function tilePos(i, blend) {
       const col = i % LENTA_COLS;
-      const row = Math.floor(i / LENTA_COLS);
-      const ramp = Math.min(1, blend * 3.2);        // fast spread out of the "stack"
+      const rowReal = Math.floor(i / LENTA_COLS);
+      const ramp = Math.min(1, blend * 3.2);        // fast fan-out from the "stack"
       const rx = col === 0 ? -LENTA_X : LENTA_X;
-      const ry = row * LENTA_ROW_STEP - tilesScroll;
-      return {
-        x: rx * ramp,
-        y: ry * ramp,
-        z: LENTA_Z
-      };
+      const ry = wrapBand(rowReal * LENTA_ROW_STEP - tilesScroll, LENTA_CYCLE);
+      return { x: rx * ramp, y: ry * ramp, z: LENTA_Z };
     }
 
     const cards = [];
@@ -582,24 +584,27 @@
         tilesScroll = 0;
         tilesScrollTarget = 0;
       } else {
-        const maxRows = Math.max(0, (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP);
         if (tilesScrollTarget < 0) tilesScrollTarget = 0;
-        if (tilesScrollTarget > maxRows) tilesScrollTarget = maxRows;
         tilesScroll += (tilesScrollTarget - tilesScroll) * (1 - Math.exp(-dt * 6));
       }
 
-      // Blend the camera: corridor (eye level on the axis) ⇄ iso view of the ribbon.
+      // Blend the camera: corridor (eye level on the axis) ⇄ square-front ortho view.
       camera.position.x = 0;
       camera.position.y = 1.7 * (1 - camModeBlend) + CAM_TILES_Y * camModeBlend;
       camera.position.z = z * (1 - camModeBlend) + CAM_TILES_Z * camModeBlend;
-      camera.rotation.x = CAM_TILES_PITCH * camModeBlend;
-      camera.rotation.y = CAM_TILES_YAW * camModeBlend;
+      camera.rotation.x = 0;
+      camera.rotation.y = 0;
       camera.rotation.z = 0;
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
       // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
       // slips behind, fading into the fog — so the corridor never runs out of lamps.
+      // (Hidden entirely in tiles mode — the flat wall needs no corridor lighting.)
+      const lightsOn = mode !== 'tiles';
       lights.forEach(L => {
+        L.light.visible = lightsOn;
+        L.bulb.visible = lightsOn;
+        if (!lightsOn) return;
         let lz = L.base + Math.floor((z - L.base) / LIGHT_LOOP) * LIGHT_LOOP;
         while (lz - z > LIGHT_LOOP) lz -= LIGHT_LOOP;
         L.light.position.set(0, corridorHeight - 0.4, lz);
