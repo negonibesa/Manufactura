@@ -302,26 +302,36 @@
     let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
-    // ===== Tiles mode: a bird’s-eye view — the works fly out of a single pile
-    // and scatter over the floor as a small spiral of flat miniatures. =====
-    const CAM_TILES_Y = 17;             // camera height above the floor
-    const CAM_TILES_Z = -9;             // depth of the tile cluster from the corridor origin
-    const CAM_TILES_PITCH = -1.35;      // ~straight down onto the cluster
-    const TILE_COUNT = 20;              // how many works scatter
-    const TILE_BASE_X = 0.5;            // scale of each flat miniature
-    const TILE_RADIUS = 8;              // outer reach of the spiral
-    const TILE_GOLDEN = 2.39996;        // golden-angle step per tile
+    // ===== Tiles mode: an iso view of a two-column ribbon of works that you
+    // flip through vertically. Camera looks at it from above-and-to-the-side (isometric),
+    // works fan out from a shared centre into the ribbon, sparse enough not to overlap. =====
+    const CAM_TILES_Y = 10;             // camera height above the ribbon centre (iso lean up)
+    const CAM_TILES_Z = 10;             // camera sits in front of the ribbon (z > ribbon)
+    const CAM_TILES_PITCH = -0.55;      // soft look down-forward at the ribbon
+    const CAM_TILES_YAW = 0.35;         // gentle diagonal so it reads as isometric
+    const LENTA_Z = -8;                 // depth plane the ribbon hangs on
+    const LENTA_COLS = 2;               // two columns of works
+    const LENTA_X = 3.2;                // half the gap between the two columns
+    const LENTA_ROW_STEP = 5.4;         // vertical spacing between stacked works
+    const TILE_BASE = 1.0;              // mini size factor of ribbon tiles
 
-    // Flat position of each tile on the floor, growing outward from a shared centre.
-    // We use camModeBlend so that at blend≈0 everything sits in one pile (the "stack")
-    // and spreads out around the camera as the blend climbs to 1 ("scatter").
+    // Scroll offset for flipping the ribbon (grows the farther you scroll down).
+    let tilesScroll = 0;
+    let tilesScrollTarget = 0;
+
+    // Placement of each work inside the 2-column ribbon, flipped by the scroll.
+    // When `blend` < 1 the ribbon has not fully assembled yet: everything crowds at
+    // the centre of the wall and spreads out only as the camera finishes the iso fly-in.
     function tilePos(i, blend) {
-      const r = (i / TILE_COUNT) * TILE_RADIUS * blend;
-      const a = i * TILE_GOLDEN;
+      const col = i % LENTA_COLS;
+      const row = Math.floor(i / LENTA_COLS);
+      const ramp = Math.min(1, blend * 2.0);        // works fan out from the shared centre
+      const rx = col === 0 ? -LENTA_X : LENTA_X;
+      const ry = row * LENTA_ROW_STEP - tilesScroll;
       return {
-        x: 0 + Math.cos(a) * r,
-        y: 0,                        // flat on the floor
-        z: CAM_TILES_Z + Math.sin(a) * r
+        x: rx * ramp,
+        y: ry * ramp,
+        z: LENTA_Z
       };
     }
 
@@ -378,7 +388,7 @@
     const TOUCH_SPEED = 0.1;
 
     function addScrollInput(d) {
-      if (mode === 'tiles') return;   // scrolling is locked in tile-wall mode
+      if (mode === 'tiles') { tilesScrollTarget += d; return; }
       target += d;
       if (target < 0) target = 0;
       if (target > 100000) target = 100000;
@@ -567,12 +577,23 @@
       const camTarget = mode === 'tiles' ? 1 : 0;
       camModeBlend += (camTarget - camModeBlend) * (1 - Math.exp(-dt * 3));
 
-      // Blend the camera: corridor (eye level on the axis) ⇄ bird’s-eye over the floor.
+      // Flip the ribbon as you scroll while in tiles mode (clamped to its length).
+      if (mode !== 'tiles') {
+        tilesScroll = 0;
+        tilesScrollTarget = 0;
+      } else {
+        const maxRows = Math.max(0, (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP);
+        if (tilesScrollTarget < 0) tilesScrollTarget = 0;
+        if (tilesScrollTarget > maxRows) tilesScrollTarget = maxRows;
+        tilesScroll += (tilesScrollTarget - tilesScroll) * (1 - Math.exp(-dt * 6));
+      }
+
+      // Blend the camera: corridor (eye level on the axis) ⇄ iso view of the ribbon.
       camera.position.x = 0;
       camera.position.y = 1.7 * (1 - camModeBlend) + CAM_TILES_Y * camModeBlend;
       camera.position.z = z * (1 - camModeBlend) + CAM_TILES_Z * camModeBlend;
-      camera.rotation.x = 0 * (1 - camModeBlend) + CAM_TILES_PITCH * camModeBlend;
-      camera.rotation.y = 0;
+      camera.rotation.x = CAM_TILES_PITCH * camModeBlend;
+      camera.rotation.y = CAM_TILES_YAW * camModeBlend;
       camera.rotation.z = 0;
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
@@ -598,7 +619,7 @@
 
         let x = card.x, y = card.y, zz = cz, sc = 1, op = 1;
 
-        if (focusing) {
+        if (mode !== 'tiles' && focusing) {
           // The chosen card glides to the screen centre & grows, stays at its slot depth
           x = 0 * t;
           y = 1.8 * t + card.y * (1 - t);
@@ -623,30 +644,31 @@
         card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
         x += card.parX;
 
-        // ---- tiles mode focus: keep the chosen tile on the floor but enlarge it ----
+        // ---- tiles mode focus: enlarge the chosen work on the ribbon ----
         if (mode === 'tiles' && focusing) {
-          x += (0 - x) * camModeBlend;             // hoover to screen centre
-          zz += (CAM_TILES_Z - zz) * camModeBlend;
-          y += (0.4 - y) * camModeBlend;           // lift it a little off the floor
-          sc = TILE_BASE_X * (2.6 + 0.6 * t);
+          const sf = tilePos(card.index, 1);
+          x = sf.x;
+          y = sf.y;
+          zz = sf.z;
+          sc = TILE_BASE * (2.4 + 0.7 * t);
           op = 1;
         }
 
-        // ---- tiles mode: bird’s-eye, the works scatter out of one pile on the floor ----
+        // ---- tiles mode: neighbours dissolve behind the chosen work ----
         if (mode === 'tiles' && !focusing && focusCard) {
-          op = 1 - t;                              // neighbours dissolve behind the chosen tile
+          op = 1 - t;
         }
 
-        // ---- tiles mode: bird’s-eye, the works scatter out of one pile on the floor ----
+        // ---- tiles mode: position each work on the 2-column ribbon ----
         if (mode === 'tiles' && !focusing && !focusCard) {
           const s = tilePos(card.index, camModeBlend);
           const hovered = card === hoverCard;
-          const lift = hovered ? 0.7 : 0;              // hover lifts the tile off the floor
+          const lift = hovered ? 0.5 : 0;              // hover nudges the tile off the wall
           x += (s.x - x) * camModeBlend;
-          y += (lift - y) * camModeBlend;
+          y += ((s.y + lift) - y) * camModeBlend;
           zz += (s.z - zz) * camModeBlend;
           card.parRot -= card.parRot * camModeBlend;
-          sc = TILE_BASE_X * (1 + Math.min(0.35, camModeBlend * 0.35) + lift * 0.6);
+          sc = TILE_BASE * (1 + lift * 0.35);
           op = 1;
         }
 
@@ -658,8 +680,8 @@
         card.mesh.material.opacity = Math.max(0, op);
         card.mesh.material.transparent = true;
         if (mode === 'tiles') {
-          // lie flat on the floor, artwork facing straight up toward the overhead camera
-          card.mesh.rotation.set(-Math.PI / 2, 0, 0);
+          // ribbon hangs vertically, artwork facing the iso camera
+          card.mesh.rotation.set(0, 0, 0);
         } else {
           card.mesh.rotation.y = focusing ? 0 : card.parRot;
           card.mesh.rotation.x = 0;
