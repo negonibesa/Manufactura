@@ -176,6 +176,40 @@
       transform: translate(-50%, -50%) rotate(135deg);
       opacity: 1;
     }
+    #mode-switch {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 45;
+      display: inline-flex;
+      gap: 0;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(4px);
+      font-family: 'Courier New', monospace;
+      pointer-events: auto;
+    }
+
+    #mode-switch button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: rgba(190, 190, 190, 0.55);
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: color 0.25s ease, background 0.25s ease;
+    }
+
+    #mode-switch button.active {
+      color: #e6e6e6;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
     body.focused {
       cursor: none;
     }
@@ -202,6 +236,11 @@
   </div>
 
   <div id="focus-cursor"></div>
+
+  <div id="mode-switch">
+    <button id="mode-corridor" class="active">Коридор</button>
+    <button id="mode-tiles">Плитки</button>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="images.js"></script>
@@ -257,6 +296,40 @@
     const SIDE_SPREAD = 2.4;
     const LOOP = NUM_CARDS * CARD_GAP;
 
+    // ===== Mode state: 'corridor' (current walk) or 'tiles' (all fly out onto one wall) =====
+    let mode = 'corridor';
+    // tile grid layout
+    const TILE_COLS = 4;
+    const TILE_GAP_X = 2.8;
+    const TILE_GAP_Y = 2.2;
+    // static camera height when facing the flattened wall of tiles
+    let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
+    let tilesTarget = 0;           // scroll target memory used while in tiles mode
+
+    // Flat tile-grid coordinates for a given card slot (row-major, centred on screen centre).
+    function tileSlot(i) {
+      const col = i % TILE_COLS;
+      const row = Math.floor(i / TILE_COLS);
+      const cols = TILE_COLS;
+      const rows = NUM_CARDS / cols;
+      const gx = (col - (cols - 1) / 2) * TILE_GAP_X;
+      const gy = (row - (rows - 1) / 2) * TILE_GAP_Y;
+      return { x: gx, y: 1.7 + gy };
+    }
+    // vertical extent of the tile grid (used to aim the camera at its centre)
+    let tileGridBottom = 0;
+    let tileGridTop = 0;
+    (function initTileGrid() {
+      let minY = Infinity, maxY = -Infinity;
+      for (let i = 0; i < NUM_CARDS; i++) {
+        const s = tileSlot(i);
+        minY = Math.min(minY, s.y);
+        maxY = Math.max(maxY, s.y);
+      }
+      tileGridBottom = minY;
+      tileGridTop = maxY;
+    })();
+
     const cards = [];
     for (let i = 0; i < NUM_CARDS; i++) {
       const side = i % 2 === 0 ? -1 : 1;
@@ -310,6 +383,7 @@
     const TOUCH_SPEED = 0.1;
 
     function addScrollInput(d) {
+      if (mode === 'tiles') return;   // scrolling is locked in tile-wall mode
       target += d;
       if (target < 0) target = 0;
       if (target > 100000) target = 100000;
@@ -362,11 +436,18 @@
     const raycaster = new THREE.Raycaster();
     function cardUnderCursor() {
       raycaster.setFromCamera(mouse, camera);
-      // Only cards right ahead of the camera can be hit
-      const candidates = cards.filter(c => {
-        const cdz = c.mesh.position.z - camera.position.z;
-        return cdz < 0 && cdz > -14.001 && c.mesh.visible;
-      });
+      let candidates;
+      if (mode === 'tiles') {
+        // In tiles mode everything sits on the flat wall; no z-direction filter,
+        // just whatever is under the cursor and visible.
+        candidates = cards.filter(c => c.mesh.visible);
+      } else {
+        // Only cards right ahead of the camera can be hit
+        candidates = cards.filter(c => {
+          const cdz = c.mesh.position.z - camera.position.z;
+          return cdz < 0 && cdz > -14.001 && c.mesh.visible;
+        });
+      }
       if (!candidates.length) return null;
       const meshes = candidates.map(c => c.mesh);
       const hits = raycaster.intersectObjects(meshes, false);
@@ -431,6 +512,29 @@
       focusMode();
     });
 
+    // ===== Mode switch: corridor walk ⇄ flat tile wall =====
+    const modeButtons = {
+      corridor: document.getElementById('mode-corridor'),
+      tiles: document.getElementById('mode-tiles')
+    };
+    function setMode(next) {
+      if (next === mode) return;
+      unfocus(); // leave any focused panel cleanly
+      mode = next;
+      Object.keys(modeButtons).forEach(k => {
+        modeButtons[k].classList.toggle('active', k === mode);
+      });
+      if (mode === 'tiles') {
+        tilesTarget = target;
+        target = 0;        // stop scroll travel; tiles are a fixed vista
+        hintEl.style.opacity = 0;
+      } else {
+        target = tilesTarget || depth; // resume where the walk was
+      }
+    }
+    modeButtons.corridor.addEventListener('click', () => setMode('corridor'));
+    modeButtons.tiles.addEventListener('click', () => setMode('tiles'));
+
     const update = () => {
       const now = performance.now();
       let dt = (now - prevTime) / 1000;
@@ -461,7 +565,19 @@
 
       const z = -depth;
       camera.position.z = z;
-      camera.rotation.set(0, 0, 0);
+
+      // Ease the camera between corridor-walk height and the flat tile wall height.
+      const camTarget = mode === 'tiles' ? 1 : 0;
+      camModeBlend += (camTarget - camModeBlend) * (1 - Math.exp(-dt * 3));
+
+      if (camModeBlend > 0.01) {
+        // In tiles mode we face the wall straight-on at the height of its grid centre.
+        camera.position.y = 1.7 * (1 - camModeBlend) + ((tileGridTop + tileGridBottom) / 2) * camModeBlend;
+        camera.rotation.set(0, 0, 0);
+      } else {
+        camera.position.y = 1.7;
+        camera.rotation.set(0, 0, 0);
+      }
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
       // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
@@ -475,6 +591,7 @@
 
       // Place cards. Camera drives to the focused card; it slides to centre & grows,
         // all other cards simply dissolve (no sideways drift).
+      const TILE_Z = Math.max(-6, z - 2.5);   // flat wall slightly ahead of the camera
       cards.forEach(card => {
         const n = Math.floor((z - card.baseline) / LOOP);
         let cz = card.baseline + n * LOOP;
@@ -511,6 +628,24 @@
         card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
         x += card.parX;
 
+        // ---- tiles mode: blend this card toward its flat grid slot on the wall ----
+        if (mode === 'tiles' && !focusing) {
+          const s = tileSlot(card.index);
+          // hover in tiles = the tile under the cursor lifts forward & slightly toward the cursor
+          let ty = s.y, tz = TILE_Z, lift = 0;
+          if (card === hoverCard) {
+            lift = 0.6;
+            ty += mouse.y * 0.25;
+            tz = TILE_Z - 1.0;               // come closer to the viewer
+          }
+          x += (s.x - x) * camModeBlend;
+          y += ((ty + lift) - y) * camModeBlend;
+          zz += (tz - zz) * camModeBlend;
+          card.parRot -= card.parRot * camModeBlend;
+          sc *= (1 + lift * 0.15);
+          op = 1;
+        }
+
         // Fully hide cards so they can't double-draw or leave halos
         card.mesh.visible = op > 0.02;
         card.mesh.position.set(x, y, zz);
@@ -518,7 +653,9 @@
         card.mesh.scale.set(sc, sc * card.aspect, sc);
         card.mesh.material.opacity = Math.max(0, op);
         card.mesh.material.transparent = true;
-        card.mesh.rotation.y = focusing ? 0 : card.parRot;
+        card.mesh.rotation.y = mode === 'tiles'
+          ? Math.PI                                  // face the camera on the flat wall
+          : (focusing ? 0 : card.parRot);
         card.mesh.rotation.z = 0;
       });
 
