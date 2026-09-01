@@ -303,17 +303,17 @@
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
     // ===== Tiles mode: an iso view of a two-column ribbon of works that you
-    // flip through vertically. Camera looks at it from above-and-to-the-side (isometric),
-    // works fan out from a shared centre into the ribbon, sparse enough not to overlap. =====
-    const CAM_TILES_Y = 10;             // camera height above the ribbon centre (iso lean up)
-    const CAM_TILES_Z = 10;             // camera sits in front of the ribbon (z > ribbon)
-    const CAM_TILES_PITCH = -0.55;      // soft look down-forward at the ribbon
+    // flip through vertically. The ribbon hangs as a flat wall; the camera looks
+    // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
+    const CAM_TILES_Y = 6;              // camera height above the ribbon centre (iso lean up)
+    const CAM_TILES_Z = 4;              // camera sits in front of the ribbon (z > ribbon)
+    const CAM_TILES_PITCH = -0.7;       // look down-forward at the ribbon (iso)
     const CAM_TILES_YAW = 0.35;         // gentle diagonal so it reads as isometric
     const LENTA_Z = -8;                 // depth plane the ribbon hangs on
     const LENTA_COLS = 2;               // two columns of works
-    const LENTA_X = 3.2;                // half the gap between the two columns
-    const LENTA_ROW_STEP = 5.4;         // vertical spacing between stacked works
-    const TILE_BASE = 1.0;              // mini size factor of ribbon tiles
+    const LENTA_X = 3.4;                // half the gap between the two columns
+    const LENTA_ROW_STEP = 5.6;         // vertical spacing between stacked works
+    const TILE_BASE = 0.8;              // mini size factor of ribbon tiles
 
     // Scroll offset for flipping the ribbon (grows the farther you scroll down).
     let tilesScroll = 0;
@@ -325,7 +325,7 @@
     function tilePos(i, blend) {
       const col = i % LENTA_COLS;
       const row = Math.floor(i / LENTA_COLS);
-      const ramp = Math.min(1, blend * 2.0);        // works fan out from the shared centre
+      const ramp = Math.min(1, blend * 3.2);        // fast spread out of the "stack"
       const rx = col === 0 ? -LENTA_X : LENTA_X;
       const ry = row * LENTA_ROW_STEP - tilesScroll;
       return {
@@ -588,13 +588,21 @@
         tilesScroll += (tilesScrollTarget - tilesScroll) * (1 - Math.exp(-dt * 6));
       }
 
-      // Blend the camera: corridor (eye level on the axis) ⇄ iso view of the ribbon.
-      camera.position.x = 0;
-      camera.position.y = 1.7 * (1 - camModeBlend) + CAM_TILES_Y * camModeBlend;
-      camera.position.z = z * (1 - camModeBlend) + CAM_TILES_Z * camModeBlend;
-      camera.rotation.x = CAM_TILES_PITCH * camModeBlend;
-      camera.rotation.y = CAM_TILES_YAW * camModeBlend;
-      camera.rotation.z = 0;
+      if (mode === 'tiles') {
+        // Glide straight to the ribbon viewpoint (from wherever the walk was) so the
+        // fan-out animation actually plays in frame — never left behind at the corridor depth.
+        camera.position.x = 0;
+        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.2));
+        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.2));
+        camera.rotation.x = CAM_TILES_PITCH;
+        camera.rotation.y = CAM_TILES_YAW;
+        camera.rotation.z = 0;
+      } else {
+        // Corridor: eye level, facing straight down the axis.
+        camera.position.z = z;
+        camera.position.y = 1.7;
+        camera.rotation.set(0, 0, 0);
+      }
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
       // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
