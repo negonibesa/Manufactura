@@ -298,37 +298,32 @@
 
     // ===== Mode state: 'corridor' (current walk) or 'tiles' (all fly out onto one wall) =====
     let mode = 'corridor';
-    // tile grid layout
-    const TILE_COLS = 4;
-    const TILE_GAP_X = 2.8;
-    const TILE_GAP_Y = 2.2;
     // static camera height when facing the flattened wall of tiles
     let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
-    // Flat tile-grid coordinates for a given card slot (row-major, centred on screen centre).
-    function tileSlot(i) {
-      const col = i % TILE_COLS;
-      const row = Math.floor(i / TILE_COLS);
-      const cols = TILE_COLS;
-      const rows = NUM_CARDS / cols;
-      const gx = (col - (cols - 1) / 2) * TILE_GAP_X;
-      const gy = (row - (rows - 1) / 2) * TILE_GAP_Y;
-      return { x: gx, y: 1.7 + gy };
+    // ===== Tiles mode: a bird’s-eye view — the works fly out of a single pile
+    // and scatter over the floor as a small spiral of flat miniatures. =====
+    const CAM_TILES_Y = 17;             // camera height above the floor
+    const CAM_TILES_Z = -9;             // depth of the tile cluster from the corridor origin
+    const CAM_TILES_PITCH = -1.35;      // ~straight down onto the cluster
+    const TILE_COUNT = 20;              // how many works scatter
+    const TILE_BASE_X = 0.5;            // scale of each flat miniature
+    const TILE_RADIUS = 8;              // outer reach of the spiral
+    const TILE_GOLDEN = 2.39996;        // golden-angle step per tile
+
+    // Flat position of each tile on the floor, growing outward from a shared centre.
+    // We use camModeBlend so that at blend≈0 everything sits in one pile (the "stack")
+    // and spreads out around the camera as the blend climbs to 1 ("scatter").
+    function tilePos(i, blend) {
+      const r = (i / TILE_COUNT) * TILE_RADIUS * blend;
+      const a = i * TILE_GOLDEN;
+      return {
+        x: 0 + Math.cos(a) * r,
+        y: 0,                        // flat on the floor
+        z: CAM_TILES_Z + Math.sin(a) * r
+      };
     }
-    // vertical extent of the tile grid (used to aim the camera at its centre)
-    let tileGridBottom = 0;
-    let tileGridTop = 0;
-    (function initTileGrid() {
-      let minY = Infinity, maxY = -Infinity;
-      for (let i = 0; i < NUM_CARDS; i++) {
-        const s = tileSlot(i);
-        minY = Math.min(minY, s.y);
-        maxY = Math.max(maxY, s.y);
-      }
-      tileGridBottom = minY;
-      tileGridTop = maxY;
-    })();
 
     const cards = [];
     for (let i = 0; i < NUM_CARDS; i++) {
@@ -477,16 +472,18 @@
       if (!hit) return;
       focusCard = hit;
       prevTarget = target;
-      // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
-      const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
-      let cz = hit.baseline + n * LOOP;
-      while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
-      let dTarget = -cz - 6.5;
-      // If the card is already closer than 6.5 units, don't travel backward / don't spring.
-      // Clamp the target so the camera never reverses past its current depth.
-      if (dTarget < depth) dTarget = depth;
-      focusDepthTarget = dTarget;
-      target = depth;
+      if (mode !== 'tiles') {
+        // Camera dives to stop ~6.5 units in front of the card's slot (never through it)
+        const n = Math.floor((camera.position.z - hit.baseline) / LOOP);
+        let cz = hit.baseline + n * LOOP;
+        while (cz - camera.position.z > 0) cz -= LOOP; // pick the instance ahead (more-negative z)
+        let dTarget = -cz - 6.5;
+        // If the card is already closer than 6.5 units, don't travel backward / don't spring.
+        // Clamp the target so the camera never reverses past its current depth.
+        if (dTarget < depth) dTarget = depth;
+        focusDepthTarget = dTarget;
+        target = depth;
+      }
       const info = FOCUS_ITEMS[hit.index % FOCUS_ITEMS.length];
       focusTitle.textContent = info.title;
       focusText.textContent = info.text;
@@ -570,14 +567,13 @@
       const camTarget = mode === 'tiles' ? 1 : 0;
       camModeBlend += (camTarget - camModeBlend) * (1 - Math.exp(-dt * 3));
 
-      if (camModeBlend > 0.01) {
-        // In tiles mode we face the wall straight-on at the height of its grid centre.
-        camera.position.y = 1.7 * (1 - camModeBlend) + ((tileGridTop + tileGridBottom) / 2) * camModeBlend;
-        camera.rotation.set(0, 0, 0);
-      } else {
-        camera.position.y = 1.7;
-        camera.rotation.set(0, 0, 0);
-      }
+      // Blend the camera: corridor (eye level on the axis) ⇄ bird’s-eye over the floor.
+      camera.position.x = 0;
+      camera.position.y = 1.7 * (1 - camModeBlend) + CAM_TILES_Y * camModeBlend;
+      camera.position.z = z * (1 - camModeBlend) + CAM_TILES_Z * camModeBlend;
+      camera.rotation.x = 0 * (1 - camModeBlend) + CAM_TILES_PITCH * camModeBlend;
+      camera.rotation.y = 0;
+      camera.rotation.z = 0;
 
       // Red→white marker lights: world-anchored endless row that scrolls past as you travel.
       // Each bulb lives at a fixed slot (LIGHT_STEP apart) and re-wraps forward when it
@@ -591,7 +587,6 @@
 
       // Place cards. Camera drives to the focused card; it slides to centre & grows,
         // all other cards simply dissolve (no sideways drift).
-      const TILE_Z = Math.max(-6, z - 2.5);   // flat wall slightly ahead of the camera
       cards.forEach(card => {
         const n = Math.floor((z - card.baseline) / LOOP);
         let cz = card.baseline + n * LOOP;
@@ -628,21 +623,30 @@
         card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
         x += card.parX;
 
-        // ---- tiles mode: blend this card toward its flat grid slot on the wall ----
-        if (mode === 'tiles' && !focusing) {
-          const s = tileSlot(card.index);
-          // hover in tiles = the tile under the cursor lifts forward & slightly toward the cursor
-          let ty = s.y, tz = TILE_Z, lift = 0;
-          if (card === hoverCard) {
-            lift = 0.6;
-            ty += mouse.y * 0.25;
-            tz = TILE_Z - 1.0;               // come closer to the viewer
-          }
+        // ---- tiles mode focus: keep the chosen tile on the floor but enlarge it ----
+        if (mode === 'tiles' && focusing) {
+          x += (0 - x) * camModeBlend;             // hoover to screen centre
+          zz += (CAM_TILES_Z - zz) * camModeBlend;
+          y += (0.4 - y) * camModeBlend;           // lift it a little off the floor
+          sc = TILE_BASE_X * (2.6 + 0.6 * t);
+          op = 1;
+        }
+
+        // ---- tiles mode: bird’s-eye, the works scatter out of one pile on the floor ----
+        if (mode === 'tiles' && !focusing && focusCard) {
+          op = 1 - t;                              // neighbours dissolve behind the chosen tile
+        }
+
+        // ---- tiles mode: bird’s-eye, the works scatter out of one pile on the floor ----
+        if (mode === 'tiles' && !focusing && !focusCard) {
+          const s = tilePos(card.index, camModeBlend);
+          const hovered = card === hoverCard;
+          const lift = hovered ? 0.7 : 0;              // hover lifts the tile off the floor
           x += (s.x - x) * camModeBlend;
-          y += ((ty + lift) - y) * camModeBlend;
-          zz += (tz - zz) * camModeBlend;
+          y += (lift - y) * camModeBlend;
+          zz += (s.z - zz) * camModeBlend;
           card.parRot -= card.parRot * camModeBlend;
-          sc *= (1 + lift * 0.15);
+          sc = TILE_BASE_X * (1 + Math.min(0.35, camModeBlend * 0.35) + lift * 0.6);
           op = 1;
         }
 
@@ -653,14 +657,21 @@
         card.mesh.scale.set(sc, sc * card.aspect, sc);
         card.mesh.material.opacity = Math.max(0, op);
         card.mesh.material.transparent = true;
-        card.mesh.rotation.y = mode === 'tiles'
-          ? Math.PI                                  // face the camera on the flat wall
-          : (focusing ? 0 : card.parRot);
-        card.mesh.rotation.z = 0;
+        if (mode === 'tiles') {
+          // lie flat on the floor, artwork facing straight up toward the overhead camera
+          card.mesh.rotation.set(-Math.PI / 2, 0, 0);
+        } else {
+          card.mesh.rotation.y = focusing ? 0 : card.parRot;
+          card.mesh.rotation.x = 0;
+          card.mesh.rotation.z = 0;
+        }
       });
 
       const prog = Math.min(1, depth / 25);
-      if (prog > 0.01) {
+      if (mode === 'tiles') {
+        titleCard.style.opacity = 0;
+        hintEl.style.opacity = 0;
+      } else if (prog > 0.01) {
         if (!focusCard) titleCard.style.opacity = 1 - prog;
         if (!focusCard) hintEl.style.opacity = 1 - prog * 1.5;
       }
