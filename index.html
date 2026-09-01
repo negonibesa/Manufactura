@@ -305,9 +305,10 @@
     // ===== Tiles mode: an iso view of a two-column ribbon of works that you
     // flip through vertically. The ribbon hangs as a flat wall; the camera looks
     // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
-    const CAM_TILES_Z = 9;             // camera sits in front of the ribbon (z > ribbon)
-    const CAM_TILES_OFFX = 0;           // small sideways offset for a hint of iso depth
-    const CAM_TILES_OFFY = 0.5;         // slight above-centre so rows tilt a little
+    const CAM_TILES_Y = 6;              // camera height above the ribbon centre (iso lean up)
+    const CAM_TILES_Z = 4;              // camera sits in front of the ribbon (z > ribbon)
+    const CAM_TILES_PITCH = -0.7;       // look down-forward at the ribbon (iso)
+    const CAM_TILES_YAW = 0.35;         // gentle diagonal so it reads as isometric
     const LENTA_Z = -8;                 // depth plane the ribbon hangs on
     const LENTA_COLS = 2;               // two columns of works
     const LENTA_X = 3.4;                // half the gap between the two columns
@@ -588,17 +589,14 @@
       }
 
       if (mode === 'tiles') {
-        // Aim squarely at the visible centre of the ribbon so every tile — and the
-        // fan-out animation as it happens — lands right in the middle of the frame.
-        // A small sideways/upward offset keeps a gentle iso feel without ruining framing.
-        const rows = NUM_CARDS / LENTA_COLS;
-        const cy = ((rows - 1) * 0.5) * LENTA_ROW_STEP - tilesScroll;   // centre row, scrolled
-        const by = cy + CAM_TILES_OFFY;
-
-        camera.position.x += (CAM_TILES_OFFX - camera.position.x) * (1 - Math.exp(-dt * 1.4));
-        camera.position.y += (by - camera.position.y) * (1 - Math.exp(-dt * 1.4));
-        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 1.4));
-        camera.lookAt(0, cy, LENTA_Z);
+        // Glide straight to the ribbon viewpoint (from wherever the walk was) so the
+        // fan-out animation actually plays in frame — never left behind at the corridor depth.
+        camera.position.x = 0;
+        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.2));
+        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.2));
+        camera.rotation.x = CAM_TILES_PITCH;
+        camera.rotation.y = CAM_TILES_YAW;
+        camera.rotation.z = 0;
       } else {
         // Corridor: eye level, facing straight down the axis.
         camera.position.z = z;
