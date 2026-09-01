@@ -325,7 +325,7 @@
     function tilePos(i, blend) {
       const col = i % LENTA_COLS;
       const row = Math.floor(i / LENTA_COLS);
-      const ramp = Math.min(1, blend * 3.2);        // fast spread out of the "stack"
+      const ramp = Math.min(1, blend * 1.4);        // works fan out clearly from the shared centre
       const rx = col === 0 ? -LENTA_X : LENTA_X;
       const ry = row * LENTA_ROW_STEP - tilesScroll;
       return {
@@ -575,7 +575,7 @@
 
       // Ease the camera between corridor-walk height and the flat tile wall height.
       const camTarget = mode === 'tiles' ? 1 : 0;
-      camModeBlend += (camTarget - camModeBlend) * (1 - Math.exp(-dt * 3));
+      camModeBlend += (camTarget - camModeBlend) * (1 - Math.exp(-dt * 1.5));
 
       // Flip the ribbon as you scroll while in tiles mode (clamped to its length).
       if (mode !== 'tiles') {
@@ -592,8 +592,8 @@
         // Glide straight to the ribbon viewpoint (from wherever the walk was) so the
         // fan-out animation actually plays in frame — never left behind at the corridor depth.
         camera.position.x = 0;
-        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.2));
-        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.2));
+        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 1.4));
+        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 1.4));
         camera.rotation.x = CAM_TILES_PITCH;
         camera.rotation.y = CAM_TILES_YAW;
         camera.rotation.z = 0;
@@ -672,11 +672,12 @@
           const s = tilePos(card.index, camModeBlend);
           const hovered = card === hoverCard;
           const lift = hovered ? 0.5 : 0;              // hover nudges the tile off the wall
+          const ramp = Math.min(1, camModeBlend * 1.4);  // grows to full size as it fans out
           x += (s.x - x) * camModeBlend;
           y += ((s.y + lift) - y) * camModeBlend;
           zz += (s.z - zz) * camModeBlend;
           card.parRot -= card.parRot * camModeBlend;
-          sc = TILE_BASE * (1 + lift * 0.35);
+          sc = TILE_BASE * (1 + lift * 0.35) * (0.45 + 0.55 * ramp);
           op = 1;
         }
 
