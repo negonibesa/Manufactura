@@ -305,13 +305,13 @@
     // ===== Tiles mode: an iso view of a two-column ribbon of works that you
     // flip through vertically. The ribbon hangs as a flat wall; the camera looks
     // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
-    const CAM_TILES_Y = 42;             // camera height above the ribbon centre (near-frontal view)
-    const CAM_TILES_Z = 40;             // camera sits well in front of the ribbon (low iso tilt)
+    const CAM_TILES_Y = 13;             // camera height above the visible ribbon strip (iso lean)
+    const CAM_TILES_Z = 14;             // camera in front of the strip (keeps tiles close & bold)
     const LENTA_Z = -8;                 // depth plane the ribbon hangs on
     const LENTA_COLS = 2;               // two columns of works
-    const LENTA_X = 3.8;                // half the gap between the two columns
-    const LENTA_ROW_STEP = 6.5;         // vertical spacing between stacked works
-    const TILE_BASE = 3.0;              // mini size factor of ribbon tiles
+    const LENTA_X = 3.4;                // half the gap between the two columns
+    const LENTA_ROW_STEP = 5.6;         // vertical spacing between stacked works
+    const TILE_BASE = 0.8;              // mini size factor of ribbon tiles
 
     // Scroll offset for flipping the ribbon (grows the farther you scroll down).
     let tilesScroll = 0;
@@ -325,12 +325,10 @@
       const row = Math.floor(i / LENTA_COLS);
       const ramp = Math.min(1, blend * 3.2);        // fast spread out of the "stack"
       const rx = col === 0 ? -LENTA_X : LENTA_X;
-      const rows = NUM_CARDS / LENTA_COLS;
-      const rowY = row * LENTA_ROW_STEP - tilesScroll;   // raw position in the ribbon
-      const centerY = (rows - 1) * LENTA_ROW_STEP * 0.5; // mid of the ribbon = stack point
+      const ry = row * LENTA_ROW_STEP - tilesScroll;
       return {
-        x: rx * ramp,                                   // spread sideways out of the centre
-        y: centerY + (rowY - centerY) * ramp,           // rise out of the stack to its slot
+        x: rx * ramp,
+        y: ry * ramp,
         z: LENTA_Z
       };
     }
@@ -589,16 +587,15 @@
       }
 
       if (mode === 'tiles') {
-        // Camera perches above the ribbon centre and always *looks at* the fixed
-        // centre of the whole wall — a constant iso angle. Scrolling slides the ribbon
-        // up/down through the frame like flipping pages; the camera never moves/rotates,
-        // so the viewing angle is rock-steady and the ribbon visibly scrolls.
+        // Glide straight to the ribbon viewpoint (from wherever the walk was) so the
+        // fan-out animation actually plays in frame — never left behind at the corridor depth.
         camera.position.x += (0 - camera.position.x) * (1 - Math.exp(-dt * 2.2));
         camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.2));
         camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.2));
-        // Fixed centre of the ribbon (does not follow the scroll): mid-frame target.
-        const ribbonMid = (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP * 0.5;
-        camera.lookAt(0, ribbonMid, LENTA_Z);
+        // Steady iso: look at the currently-visible strip centre so the tiles stay big
+        // and centred while scrolling flips them through the frame at a constant angle.
+        const stripY = (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP * 0.5 - tilesScroll;
+        camera.lookAt(0, stripY, LENTA_Z);
       } else {
         // Corridor: eye level, facing straight down the axis.
         camera.position.z = z;
