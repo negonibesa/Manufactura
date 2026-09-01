@@ -375,6 +375,10 @@
     const TILE_VIEW = 26;
     const TILE_PERIOD_Y = (NUM_CARDS / 2) * TILE_ROW_GAP;
 
+    // Anchored gallery plane on entry: tiles always open exactly like at start.
+    const GALLERY_DEPTH = 0;
+    let prevDepth = 0;
+
     // ===== Scroll input + stable smoothing (camera goes deeper / tape scrolls) =====
     let target = 0;
     let mid = 0;
@@ -532,6 +536,17 @@
     function switchMode(next) {
       if (next === mode) return;
       if (focusCard) unfocus();
+      if (next === 'tiles') {
+        // Remember where we were so exiting can bring us back, and reset the tape
+        // so every entry looks identical to the page-load state.
+        prevDepth = depth;
+        tileScroll = 0;
+        tileScrollTarget = 0;
+        target = GALLERY_DEPTH;
+      } else {
+        // Returning: glide back to the corridor depth we left from.
+        target = prevDepth;
+      }
       mode = next;
       blendTarget = mode === 'tiles' ? 1 : 0;
       hintEl.style.display = mode === 'tiles' ? 'none' : '';
