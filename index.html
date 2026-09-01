@@ -532,12 +532,12 @@
     function switchMode(next) {
       if (next === mode) return;
       if (focusCard) unfocus();
-      if (next === 'tiles') {
-        // Just swap the viewpoint in place: keep the corridor depth untouched and
-        // reopen the tape from the top. No scrolling back through the corridor.
-        tileScroll = 0;
-        tileScrollTarget = 0;
-      }
+      // Both directions open/close from the tape's top, so the gather/re-spread in
+      // and out of the corridor always mirrors the page-start state regardless of
+      // how far (or which way) the tape was scrolled. Snapping scroll instantly is
+      // invisible because the mode blend covers the jump.
+      tileScroll = 0;
+      tileScrollTarget = 0;
       mode = next;
       blendTarget = mode === 'tiles' ? 1 : 0;
       hintEl.style.display = mode === 'tiles' ? 'none' : '';
