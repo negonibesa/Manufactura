@@ -299,38 +299,30 @@
     // ===== Mode state: 'corridor' (current walk) or 'tiles' (all fly out onto one wall) =====
     let mode = 'corridor';
     // static camera height when facing the flattened wall of tiles
-    let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
+    let tilesT = 0;                // 0→1 assembly of the ribbon (visible fan-out), driven by time
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
     // ===== Tiles mode: an iso view of a two-column ribbon of works that you
     // flip through vertically. The ribbon hangs as a flat wall; the camera looks
     // at it from above-and-to-the-side (isometric), scroll scrolls the ribbon. =====
-    const CAM_TILES_Y = 13;             // camera height above the visible ribbon strip (iso lean)
+    const CAM_TILES_Y = 26;             // camera height above the ribbon centre (iso from above)
     const CAM_TILES_Z = 14;             // camera in front of the strip (keeps tiles close & bold)
     const LENTA_Z = -8;                 // depth plane the ribbon hangs on
     const LENTA_COLS = 2;               // two columns of works
     const LENTA_X = 3.4;                // half the gap between the two columns
     const LENTA_ROW_STEP = 5.6;         // vertical spacing between stacked works
-    const TILE_BASE = 0.8;              // mini size factor of ribbon tiles
+    const TILE_BASE = 2.2;              // mini size factor of ribbon tiles
 
     // Scroll offset for flipping the ribbon (grows the farther you scroll down).
     let tilesScroll = 0;
     let tilesScrollTarget = 0;
 
-    // Placement of each work inside the 2-column ribbon, flipped by the scroll.
-    // When `blend` < 1 the ribbon has not fully assembled yet: everything crowds at
-    // the centre of the wall and spreads out only as the camera finishes the iso fly-in.
-    function tilePos(i, blend) {
+    function tilePos(i) {
       const col = i % LENTA_COLS;
       const row = Math.floor(i / LENTA_COLS);
-      const ramp = Math.min(1, blend * 3.2);        // fast spread out of the "stack"
       const rx = col === 0 ? -LENTA_X : LENTA_X;
       const ry = row * LENTA_ROW_STEP - tilesScroll;
-      return {
-        x: rx * ramp,
-        y: ry * ramp,
-        z: LENTA_Z
-      };
+      return { x: rx, y: ry, z: LENTA_Z };
     }
 
     const cards = [];
@@ -529,11 +521,24 @@
       Object.keys(modeButtons).forEach(k => {
         modeButtons[k].classList.toggle('active', k === mode);
       });
+      // Snapshot each card's current corridor spot the FIRST time we open tiles. It stays as
+      // the `tilesT=0` source for the fan-out AND the return home on exit (don't re-snapshot
+      // on exit, or the reverse motion would collapse to zero).
+      if (mode === 'tiles' && !cards[0]._snapped) {
+        cards.forEach(c => {
+          const p = c.mesh.position;
+          c.fromPos = { x: p.x, y: p.y, z: p.z };
+        });
+        cards.forEach(c => { c._snapped = true; });
+      }
       if (mode === 'tiles') {
         tilesTarget = target;
         target = 0;        // stop scroll travel; tiles are a fixed vista
         hintEl.style.opacity = 0;
       } else {
+        // Returning to the corridor: next time we open tiles, snapshot the (possibly new)
+        // corridor spot again so the fan-out always starts from where the user is.
+        cards.forEach(c => { c._snapped = false; });
         target = tilesTarget || depth; // resume where the walk was
       }
     }
@@ -571,9 +576,10 @@
       const z = -depth;
       camera.position.z = z;
 
-      // Ease the camera between corridor-walk height and the flat tile wall height.
-      const camTarget = mode === 'tiles' ? 1 : 0;
-      camModeBlend += (camTarget - camModeBlend) * (1 - Math.exp(-dt * 3));
+      // Ribbon assembly: 0→1 while in tiles, 1→0 on exit. Slower than the camera so the
+      // cards rearrange *in front of an already-settled view* — a clearly visible fan-out.
+      const tTarg = mode === 'tiles' ? 1 : 0;
+      tilesT += (tTarg - tilesT) * (1 - Math.exp(-dt * 1.8));
 
       // Flip the ribbon as you scroll while in tiles mode (clamped to its length).
       if (mode !== 'tiles') {
@@ -587,15 +593,14 @@
       }
 
       if (mode === 'tiles') {
-        // Glide straight to the ribbon viewpoint (from wherever the walk was) so the
-        // fan-out animation actually plays in frame — never left behind at the corridor depth.
-        camera.position.x += (0 - camera.position.x) * (1 - Math.exp(-dt * 2.2));
-        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.2));
-        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.2));
-        // Steady iso: look at the currently-visible strip centre so the tiles stay big
-        // and centred while scrolling flips them through the frame at a constant angle.
-        const stripY = (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP * 0.5 - tilesScroll;
-        camera.lookAt(0, stripY, LENTA_Z);
+        // Settle the camera onto the ribbon view quickly (faster than the card fan-out),
+        // so the rearrange plays out on an already-stable frame and reads clearly.
+        camera.position.x += (0 - camera.position.x) * (1 - Math.exp(-dt * 2.6));
+        camera.position.y += (CAM_TILES_Y - camera.position.y) * (1 - Math.exp(-dt * 2.6));
+        camera.position.z += (CAM_TILES_Z - camera.position.z) * (1 - Math.exp(-dt * 2.6));
+        // Steady iso: camera angle fixed on the geometric centre of the whole ribbon, so
+        // scrolling slides the ribbon up/down through the frame like a classic tape.
+        camera.lookAt(0, (NUM_CARDS / LENTA_COLS - 1) * LENTA_ROW_STEP * 0.5, LENTA_Z);
       } else {
         // Corridor: eye level, facing straight down the axis.
         camera.position.z = z;
@@ -653,7 +658,7 @@
 
         // ---- tiles mode focus: enlarge the chosen work on the ribbon ----
         if (mode === 'tiles' && focusing) {
-          const sf = tilePos(card.index, 1);
+          const sf = tilePos(card.index);
           x = sf.x;
           y = sf.y;
           zz = sf.z;
@@ -668,13 +673,19 @@
 
         // ---- tiles mode: position each work on the 2-column ribbon ----
         if (mode === 'tiles' && !focusing && !focusCard) {
-          const s = tilePos(card.index, camModeBlend);
+          // Fan-out: cards travel from their captured corridor spot (tilesT=0) to their
+          // exact ribbon slot (tilesT=1). Smoothstepped so it's a clear, readable rearrange,
+          // and reversed the same way when returning to the corridor.
+          const s = tilePos(card.index);
+          const src = card.fromPos || { x: card.x, y: card.y, z: card.mesh.position.z };
+          const k = tilesT * tilesT * (3 - 2 * tilesT);     // smoothstep 0→1
+          x = src.x + (s.x - src.x) * k;
+          y = src.y + (s.y - src.y) * k;
+          zz = src.z + (s.z - src.z) * k;
           const hovered = card === hoverCard;
-          const lift = hovered ? 0.5 : 0;              // hover nudges the tile off the wall
-          x += (s.x - x) * camModeBlend;
-          y += ((s.y + lift) - y) * camModeBlend;
-          zz += (s.z - zz) * camModeBlend;
-          card.parRot -= card.parRot * camModeBlend;
+          const lift = hovered ? 0.5 : 0;                  // hover nudges the tile off the wall
+          y += lift * k;
+          card.parRot = 0;
           sc = TILE_BASE * (1 + lift * 0.35);
           op = 1;
         }
