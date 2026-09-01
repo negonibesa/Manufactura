@@ -302,20 +302,21 @@
     let camModeBlend = 0;          // 0 = corridor, 1 = tiles (eased)
     let tilesTarget = 0;           // scroll target memory used while in tiles mode
 
-    // ===== Tiles mode: an orthographic-looking front view of a two-column ribbon of
-    // works you flip through vertically. The camera sits square in front of the wall,
-    // no tilt (nothing perspective-y), and the ribbon is endless — works re-wrap top↔bottom
-    // as you scroll, so it never runs out. =====
-    const LENTA_Z = 0;                  // depth plane the ribbon hangs on (in front of camera)
+    // ===== Tiles mode: you're simply flipping a 2-column ribbon straight in front of you.
+    // The ribbon hangs as a flat wall deeper in the corridor (like the other cards) and the
+    // camera stays at eye level, looking straight at it — no tilt, no iso. Endless: works
+    // re-wrap top↔bottom as you scroll, so it never runs out. =====
+    const LENTA_Z = -11;                // depth plane the ribbon hangs on (ahead of the camera)
     const LENTA_COLS = 2;               // two columns of works
-    const LENTA_X = 3.4;                // half the gap between the two columns
-    const LENTA_ROW_STEP = 5.0;         // vertical spacing between stacked works
-    const TILE_BASE = 3.2;              // size factor of ribbon tiles (fills the screen)
+    const LENTA_X = 3.6;                // half the gap between the two columns
+    const LENTA_ROW_STEP = 5.4;         // vertical spacing between stacked works
+    const TILE_BASE = 3.4;              // size factor of ribbon tiles (fills the screen)
     // An endless ribbon: the visible vertical span is wrapped across a long cycle, so
     // scrolling never hits a beginning or end — the same collection loops forever.
-    const LENTA_CYCLE = LENTA_ROW_STEP * 26;
-    const CAM_TILES_Y = 0;              // camera at the ribbon's vertical centre, no lean
-    const CAM_TILES_Z = 12;             // distance in front of the ribbon wall
+    const LENTA_CYCLE = LENTA_ROW_STEP * 30;
+    // The camera just stays put (eye level, on the corridor axis) and looks at the wall.
+    const CAM_TILES_Y = 1.7;
+    const CAM_TILES_Z = 0;
 
     // Scroll offset for flipping the ribbon (grows the farther you scroll down).
     let tilesScroll = 0;
