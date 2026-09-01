@@ -180,7 +180,7 @@
       cursor: none;
     }
 
-    /* ===== Mode toggle: icon segments (corridor / tiles) ===== */
+    /* ===== Mode toggle: two plain icon buttons (corridor / tiles) ===== */
     #mode-toggle {
       position: fixed;
       bottom: 74px;
@@ -188,22 +188,13 @@
       transform: translateX(-50%);
       z-index: 50;
       display: flex;
-      gap: 6px;
-      padding: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.4); /* like the cursor ring */
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(4px);
+      gap: 14px;
+      background: none;
       user-select: none;
-      transition: border-color 0.2s ease, background 0.2s ease;
-    }
-    #mode-toggle:hover {
-      border-color: rgba(255, 255, 255, 0.65);
-      background: rgba(0, 0, 0, 0.5);
     }
     #mode-toggle .seg {
-      width: 30px;
-      height: 30px;
+      width: 34px;
+      height: 34px;
       padding: 0;
       border: none;
       outline: none;
@@ -211,24 +202,24 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: transparent;
-      color: rgba(255, 255, 255, 0.55);
+      background: rgba(0, 0, 0, 0.4);   /* dark circle, no outline */
+      color: #6a6a6a;                    /* inactive: dim dark grey, just visible */
       cursor: pointer;
-      transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
+      transition: color 0.2s ease, background 0.2s ease;
     }
     #mode-toggle .seg:hover {
-      color: rgba(255, 255, 255, 0.9);
+      color: #9a9a9a;
     }
     #mode-toggle .seg.active {
-      background: #fff;  /* filled circle */
-      color: #000;       /* black icon inside */
+      background: rgba(0, 0, 0, 0.4);
+      color: #e0e0e0;                    /* active: light grey, brighter but not white */
     }
     #mode-toggle .seg svg {
       display: block;
       width: 17px;
       height: 17px;
+      fill: currentColor;
     }
-    #mode-toggle .seg svg path { fill: currentColor; }
   </style>
 </head>
 <body>
