@@ -293,18 +293,12 @@
     scene.add(ambientLight);
 
     const lights = [];
-    const LIGHT_STEP = 8;           // bulb spacing along the corridor
-    const LIGHT_LOOP = 40;          // bulb sweep span (8 * 20 positions)
+    const LIGHT_STEP = 8;           // spotlight spacing along the corridor
+    const LIGHT_LOOP = 40;          // spotlight sweep span (8 * 20 positions)
     for (let i = 0; i < 20; i++) {
       const light = new THREE.PointLight(0xffffff, 0.55, 26);
       scene.add(light);
-      const bulb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.045, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0xdcdcdc })
-      );
-      bulb.position.copy(light.position);
-      scene.add(bulb);
-      lights.push({ light, bulb, base: -(i + 1) * LIGHT_STEP });
+      lights.push({ light, base: -(i + 1) * LIGHT_STEP });
     }
 
     // ===== Cards on the sides, facing the traveler =====
@@ -606,15 +600,11 @@
       camLook.lerpVectors(camFrom, camTo, blend);
       camera.lookAt(camLook);
 
-      // Corridor lamps fade out as we move to the tiles view, and hide in card view
-      const showLights = blend < 0.5 && !focusCard;
+      // Keep corridor spotlights following the traveler (lights always on)
       lights.forEach(L => {
         let lz = L.base + Math.floor((z - L.base) / LIGHT_LOOP) * LIGHT_LOOP;
         while (lz - z > LIGHT_LOOP) lz -= LIGHT_LOOP;
         L.light.position.set(0, corridorHeight - 0.4, lz);
-        L.bulb.position.set(0, corridorHeight - 0.4, lz);
-        L.light.visible = showLights;
-        L.bulb.visible = showLights;
       });
 
       // Place cards. Every card gets a corridor position and a tiles position;
