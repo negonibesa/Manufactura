@@ -666,13 +666,14 @@
         let op = cop + (top - cop) * blend;
 
         // Parallax: the hovered card leans toward the cursor like it's glued to it.
+        // Applied in both corridor and tiles so hovering behaves identically.
         const isHover = card === hoverCard && !focusCard;
         if (card.parX === undefined) { card.parX = 0; card.parRot = 0; }
         const pxT = isHover ? mouse.x * 0.45 : 0;
         const prT = isHover ? mouse.x * 0.12 : 0;
         card.parX += (pxT - card.parX) * (1 - Math.exp(-dt * 10));
         card.parRot += (prT - card.parRot) * (1 - Math.exp(-dt * 10));
-        x += card.parX * (1 - blend);
+        x += card.parX;
 
         // Fully hide cards so they can't double-draw or leave halos
         card.mesh.visible = op > 0.02;
@@ -681,7 +682,7 @@
         card.mesh.scale.set(sc, sc * card.aspect, sc);
         card.mesh.material.opacity = Math.max(0, op);
         card.mesh.material.transparent = true;
-        card.mesh.rotation.y = focusing ? 0 : card.parRot * (1 - blend);
+        card.mesh.rotation.y = focusing ? 0 : card.parRot;
         card.mesh.rotation.x = 0;
         card.mesh.rotation.z = 0;
       });
