@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manufactura — photo ring ↔ tape</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
+  canvas { display: block; }
+  #note {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    font: 11px/1.4 system-ui, sans-serif; letter-spacing: 3px; text-transform: uppercase;
+    color: #b0b0b0; pointer-events: none; user-select: none; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div id="note">scroll — the ring unspools into a tape · hover a card — it sticks</div>
+
+<script src="three.min.js"></script>
+<script src="images.js"></script>
+<script>
+(function () {
+  const NUM = IMAGE_DATA.length;          // 23 photos from the gallery
+  const GAP_PX = 80;                      // visible gap between cards, in screen px
+  const RING_PX = 0.47;                   // ring radius as share of the smaller viewport edge
+  const ROY = 0.16;                       // auto-rotation speed (rad/s), only in ring mode
+  const TILT = 0.07;                      // mouse tilt amplitude
+  const OVERLAY = 0.2;                    // white overlay on every card by default
+  const UNFOLD_PITCH = 0.9;               // scroll units to fully unfold ONE card
+  const GROW = 0.4;                       // cards grow up to +40% as they unfold
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xffffff);
+
+  const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+  camera.position.set(0, 1.5, 14);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  document.body.appendChild(renderer.domElement);
+
+  const loader = new THREE.TextureLoader();
+  const ring = new THREE.Group();
+  scene.add(ring);
+
+  const cards = [];   // { group, wrap, mesh, overlay, ang, aspect, done, lean, off, lift, ovT, bw, bh }
+  let radius = 0;
+  let spacingUnit = 0;                    // card pitch on the tape (world units)
+  let tapeSpan = 0;                       // tape length in world units, set in layout()
+
+  // world units per screen pixel at the plane of the ring
+  const unitPerPx = () => (2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / innerHeight;
+
+  // ring radius, card width and tape pitch all computed in screen pixels so the
+  // whole ring fits the window and the gap stays ~GAP_PX
+  function layout() {
+    const upx = unitPerPx();
+    const rPx = RING_PX * Math.min(innerWidth, innerHeight);
+    radius = rPx * upx;
+    const arcPx = (Math.PI * 2 * rPx) / NUM;
+    const wPx = Math.max(60, arcPx - GAP_PX);
+    const w = wPx * upx;
+    spacingUnit = (arcPx + GAP_PX) * upx; // card pitch = card width + gap, keeps the same 80px
+    tapeSpan = NUM * spacingUnit;
+    cards.forEach(c => {
+      c.bw = w;
+      c.bh = w * c.aspect;
+    });
+  }
+  function setAspect(c, aspect, force) {
+    if (c.done && !force) return;
+    c.aspect = aspect;
+    c.done = true;
+    layout();
+  }
+
+  for (let i = 0; i < NUM; i++) {
+    const ang = (i / NUM) * Math.PI * 2;
+    const tex = loader.load(IMAGE_DATA[i]);
+    tex.encoding = THREE.sRGBEncoding;
+
+    const group = new THREE.Group();
+    ring.add(group);
+
+    const wrap = new THREE.Group();       // "sticks" toward the cursor on hover
+    group.add(wrap);
+
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, side: THREE.DoubleSide })
+    );
+    const overlay = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: OVERLAY, side: THREE.DoubleSide })
+    );
+    wrap.add(mesh);
+    wrap.add(overlay);
+
+    const card = { group, wrap, mesh, overlay, ang, aspect: 1, done: false, lean: 0, off: 0, lift: 0, ovT: OVERLAY, bw: 1, bh: 1 };
+    cards.push(card);
+
+    const im = tex.image;
+    if (im && im.width) setAspect(card, im.height / im.width, true);
+  }
+  layout();
+
+  // ---- hover via raycast, "stick" like in index.html ----
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let hoverCard = null;
+
+  function cardUnderPointer(e) {
+    ndc.x = (e.clientX / innerWidth) * 2 - 1;
+    ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    for (const hit of raycaster.intersectObjects(cards.map(c => c.mesh))) {
+      return cards.find(c => c.mesh === hit.object);
+    }
+    return null;
+  }
+  window.addEventListener('mousemove', (e) => {
+    hoverCard = cardUnderPointer(e);
+  }, { passive: true });
+
+  // mouse tilt: -1..1, smoothed
+  let mx = 0, my = 0, smx = 0, smy = 0;
+  window.addEventListener('mousemove', (e) => {
+    mx = (e.clientX / innerWidth) * 2 - 1;
+    my = (e.clientY / innerHeight) * 2 - 1;
+  }, { passive: true });
+
+  // ---- wheel: cards unspool off the ring one by one into a panning tape ----
+  let scroll = 0, scrollTarget = 0;
+  const UNFOLD_TOTAL = NUM * UNFOLD_PITCH;  // wheel units until the whole tape is out
+  function addScroll(d) {
+    const max = UNFOLD_TOTAL + tapeSpan * 0.5;
+    scrollTarget = Math.max(0, Math.min(max, scrollTarget + d));
+  }
+  window.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    addScroll(e.deltaY * 0.02);
+  }, { passive: false });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    layout();
+  });
+
+  let last = performance.now();
+  let auto = 0;                            // auto rotation angle (ring mode only)
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+
+    smx += (mx - smx) * (1 - Math.exp(-dt * 4));
+    smy += (my - smy) * (1 - Math.exp(-dt * 4));
+
+    // smooth scroll / unfold
+    scroll += (scrollTarget - scroll) * (1 - Math.exp(-dt * 6));
+
+    // apply each photo's real proportions once its image has loaded
+    for (const c of cards) {
+      if (!c.done) {
+        const im = c.mesh.material.map.image;
+        if (im && im.width) setAspect(c, im.height / im.width);
+      }
+    }
+
+    // how far the last card has come off the ring: 0 = all on ring, 1 = all on tape
+    const done = Math.min(1, scroll / UNFOLD_TOTAL);
+    const tapeX = Math.max(0, scroll - UNFOLD_TOTAL);      // sideways scroll after the tape is out
+    auto += ROY * dt * (1 - done);
+
+    const mid = (NUM - 1) / 2;
+    for (const c of cards) {
+      // logical index 0..NUM-1 (tape order), same as creation order
+      const ti = (c.ang / (Math.PI * 2)) * NUM;
+      // this card's own unspool progress: card ti leaves while scroll passes here
+      const cu = Math.max(0, Math.min(1, (scroll - ti * UNFOLD_PITCH) / UNFOLD_PITCH));
+      const su = cu * cu * (3 - 2 * cu);                   // smooth step easing
+
+      // ring position (auto-rotated)
+      const effAng = c.ang + auto;
+      const rx = Math.sin(effAng) * radius;
+      const rz = Math.cos(effAng) * radius;
+      // tape position (centred line, pans sideways)
+      const px = (ti - mid) * spacingUnit - tapeX;
+      const py = 0;
+
+      c.group.position.set(rx + (px - rx) * su, 0, rz + (0 - rz) * su);
+      const rot = c.ang + auto;
+      c.group.rotation.y = rot * (1 - su);
+
+      // cards grow as they unspool
+      const grow = 1 + GROW * su;
+      c.mesh.scale.set(c.bw * grow, c.bh * grow, 1);
+      c.overlay.scale.set(c.bw * grow, c.bh * grow, 1);
+
+      // hover "stick"
+      const on = c === hoverCard;
+      const k = 1 - Math.exp(-dt * 10);
+      c.lean += ((on ? smx * 0.25 : 0) - c.lean) * k;
+      c.off  += ((on ? smx * 0.3  : 0) - c.off) * k;
+      c.lift += ((on ? 0.15        : 0) - c.lift) * k;
+      c.ovT  += ((on ? 0 : OVERLAY) - c.ovT) * k;
+      c.wrap.rotation.y = c.lean;
+      c.wrap.position.set(c.off, c.lift, 0);
+      c.overlay.material.opacity = c.ovT;
+    }
+
+    ring.rotation.x = -smy * TILT * (1 - done);
+    ring.rotation.z = smx * TILT * (1 - done);
+    ring.rotation.y = 0;
+
+    camera.position.x = smx * 0.6;
+    camera.position.y = 1.5 - smy * 0.5;
+    camera.lookAt(0, 0, 0);
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
