@@ -67,26 +67,24 @@
   }
   .site-nav ul a .nav-count { transition: color 0.4s ease; opacity: 0.7; }
   /* Ховер-ролл текста: верх копии улетает вверх в маске, снизу в ту же маску
-     поднимается копия. Маска = overflow:hidden по высоте одной строки. */
+     поднимается копия. Маска = inline-block, усечённый по высоте строки. */
   .site-nav ul a .nav-roll {
-    position: relative; display: block; overflow: hidden;
-    line-height: 18px; height: 18px;
+    position: relative; display: inline-block; overflow: hidden;
+    vertical-align: bottom; line-height: 18px; height: 18px;
     pointer-events: none;
   }
-  .site-nav ul a .nav-roll .nr-in {
-    display: block; will-change: transform;
+  .site-nav ul a .nav-roll .nr-in,
+  .site-nav ul a .nav-roll .nr-copy {
+    display: block; height: 18px; line-height: 18px; white-space: nowrap;
+    will-change: transform;
     transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .site-nav ul a .nav-roll .nr-copy {
-    display: block; position: absolute; left: 0; top: 0;
-    transform: translateY(100%); will-change: transform;
-    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    position: absolute; left: 0; top: 0;
+    transform: translateY(100%);
   }
   .site-nav ul a:hover .nav-roll .nr-in  { transform: translateY(-100%); }
   .site-nav ul a:hover .nav-roll .nr-copy{ transform: translateY(0); }
-  /* отключаем анимацию ховера при смене темы (подмена хедера) */
-  .site-nav ul a.nav-no-roll .nav-roll .nr-in  { transform: none; }
-  .site-nav ul a.nav-no-roll .nav-roll .nr-copy{ transform: translateY(100%); }
   .site-nav .cart {
     display: flex; align-items: center; gap: 8px;
     color: #141414; text-decoration: none;
