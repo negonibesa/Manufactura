@@ -52,7 +52,6 @@
   .header-dark .site-nav .profile { color: #fff; }
   .header-dark .site-nav .fave img,
   .header-dark .site-nav .profile img { filter: invert(1) !important; }
-  .header-dark .site-nav ul a::after { background: #fff; }
   .header-dark .site-nav ul { gap: 56px; }
   .site-nav ul {
     display: flex; gap: 56px; margin: 0; padding: 0;
@@ -63,30 +62,31 @@
   }
   .site-nav ul a {
     color: #141414; text-decoration: none;
-    position: relative; display: inline-block; padding-bottom: 2px;
+    position: relative; display: inline-block;
     transition: color 0.4s ease;
   }
   .site-nav ul a .nav-count { transition: color 0.4s ease; opacity: 0.7; }
-  .site-nav ul a::after {
-    content: ''; position: absolute; left: 0; bottom: 0;
-    width: 100%; height: 1px;     background: #222222;
-    transform: scaleX(0); transform-origin: left;
+  /* Ховер-ролл текста: верх копии улетает вверх в маске, снизу в ту же маску
+     поднимается копия. Маска = overflow:hidden по высоте одной строки. */
+  .site-nav ul a .nav-roll {
+    position: relative; display: block; overflow: hidden;
+    line-height: 18px; height: 18px;
     pointer-events: none;
   }
-  .site-nav ul a.hover-in::after {
-    animation: ulIn 0.3s ease forwards;
+  .site-nav ul a .nav-roll .nr-in {
+    display: block; will-change: transform;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .site-nav ul a.hover-out::after {
-    animation: ulOut 0.3s ease forwards;
+  .site-nav ul a .nav-roll .nr-copy {
+    display: block; position: absolute; left: 0; top: 0;
+    transform: translateY(100%); will-change: transform;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  @keyframes ulIn {
-    from { transform: scaleX(0); }
-    to   { transform: scaleX(1); }
-  }
-  @keyframes ulOut {
-    from { transform: scaleX(1); transform-origin: right; }
-    to   { transform: scaleX(0); transform-origin: right; }
-  }
+  .site-nav ul a:hover .nav-roll .nr-in  { transform: translateY(-100%); }
+  .site-nav ul a:hover .nav-roll .nr-copy{ transform: translateY(0); }
+  /* отключаем анимацию ховера при смене темы (подмена хедера) */
+  .site-nav ul a.nav-no-roll .nav-roll .nr-in  { transform: none; }
+  .site-nav ul a.nav-no-roll .nav-roll .nr-copy{ transform: translateY(100%); }
   .site-nav .cart {
     display: flex; align-items: center; gap: 8px;
     color: #141414; text-decoration: none;
@@ -417,10 +417,10 @@
 <header class="site-header header-white">
   <nav class="site-nav" aria-label="Меню">
     <ul>
-      <li><a href="#"><span class="nav-label">Авторы</span> <span class="nav-count">(145)</span></a></li>
-      <li><a href="#"><span class="nav-label">Галлерея</span> <span class="nav-count">(542)</span></a></li>
-      <li><a href="#">События</a></li>
-      <li><a href="#">о&nbsp;проекте</a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">Авторы</span></span><span class="nr-copy"><span class="nav-label">Авторы</span></span></span> <span class="nav-count">(145)</span></a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">Галлерея</span></span><span class="nr-copy"><span class="nav-label">Галлерея</span></span></span> <span class="nav-count">(542)</span></a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">События</span></span><span class="nr-copy"><span class="nav-label">События</span></span></span></a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">о&nbsp;проекте</span></span><span class="nr-copy"><span class="nav-label">о&nbsp;проекте</span></span></span></a></li>
     </ul>
     <div class="nav-end">
       <a class="fave" href="#" aria-label="Избранное">
@@ -438,10 +438,10 @@
 <header class="site-header header-dark">
   <nav class="site-nav" aria-label="Меню">
     <ul>
-      <li><a href="#"><span class="nav-label">Авторы</span> <span class="nav-count">(145)</span></a></li>
-      <li><a href="#"><span class="nav-label">Галлерея</span> <span class="nav-count">(542)</span></a></li>
-      <li><a href="#">События</a></li>
-      <li><a href="#">о&nbsp;проекте</a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">Авторы</span></span><span class="nr-copy"><span class="nav-label">Авторы</span></span></span> <span class="nav-count">(145)</span></a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">Галлерея</span></span><span class="nr-copy"><span class="nav-label">Галлерея</span></span></span> <span class="nav-count">(542)</span></a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">События</span></span><span class="nr-copy"><span class="nav-label">События</span></span></span></a></li>
+      <li><a href="#"><span class="nav-roll"><span class="nr-in"><span class="nav-label">о&nbsp;проекте</span></span><span class="nr-copy"><span class="nav-label">о&nbsp;проекте</span></span></span></a></li>
     </ul>
     <div class="nav-end">
       <a class="fave" href="#" aria-label="Избранное">
@@ -751,19 +751,8 @@
   const yearEl = document.getElementById('year');
   const mainTitleEl = document.getElementById('main-title');
 
-  // underline: left→right in, right→left out
-  document.querySelectorAll('.site-nav ul a').forEach(a => {
-    a.addEventListener('mouseenter', () => {
-      a.classList.remove('hover-out');
-      void a.offsetWidth;
-      a.classList.add('hover-in');
-    });
-    a.addEventListener('mouseleave', () => {
-      a.classList.remove('hover-in');
-      void a.offsetWidth;
-      a.classList.add('hover-out');
-    });
-  });
+  // Ховер-ролл текста в меню реализован чистым CSS (:hover → translateY в маске),
+  // JS тут не нужен.
 
   // ---- debug: высоты экранов для теста (2 зоны: синяя + вторая) ----
   const debugEl = document.getElementById('debug');
