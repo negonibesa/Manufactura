@@ -626,8 +626,8 @@ text-decoration: underline;
     font-weight: 400; font-size: 14px; line-height: 1.2; color: #828282;
     white-space: nowrap;
   }
-  .a-desc {   /* описание автора: 4 колонки сетки (col 4-7), старт от колонки */
-    grid-column: 4 / 8; min-width: 0;
+  .a-desc {   /* описание автора: начинается с 5-й колонки сетки, выровнено влево */
+    grid-column: 5 / 9; min-width: 0;
     font-family: Inter, Arial, sans-serif;
     font-weight: 500; font-size: 16px; line-height: 1.2; letter-spacing: 0; color: #141414;
     white-space: nowrap;
@@ -758,6 +758,7 @@ text-decoration: underline;
     position: absolute; left: 32px; top: 712px;
     width: 1800px; height: 157px;
     transform-origin: 0 0;
+    mix-blend-mode: exclusion;
   }
   .foot-manuf img {
     position: absolute; display: block;
@@ -1444,7 +1445,7 @@ text-decoration: underline;
     'Afisha3.jpg',
     'assets/image-2427478e282c119b6a523073.jpg'
   ];
-  const FOOT_BRUSH = 20;   // радиус кисти, px
+  const FOOT_BRUSH = 40;   // радиус кисти, px
   const FOOT_OPEN = 0.9;   // порог «фото полностью показалось»
   const footHero = footEl?.querySelector('.foot-hero');
   const footCanvasEl = footHero?.querySelector('.foot-canvas');
@@ -1832,7 +1833,7 @@ text-decoration: underline;
     const Hp = Math.max(0, galleryPage.offsetHeight);
     const scrMax = Math.max(0, Hp + galleryPage.offsetTop);
     const FOOT_CURTAIN_PX = footBg ? footBg.offsetHeight : 0;
-    SCROLL_MAX = gEndK + (scrMax + FOOT_CURTAIN_PX) / (0.14 * innerHeight || 1);
+    SCROLL_MAX = gEndK + (scrMax + FOOT_CURTAIN_PX) / (0.12 * innerHeight || 1);
   }
 
   // Рост кружка под курсором: НЕ растёт над меню/ссылками шапки, растёт над
@@ -2326,7 +2327,7 @@ scene.background = new THREE.Color(0xfbfcfa);
         // Единый темп со 2-м экраном (эталон): 1 scroll-единица = 0.14*innerH px.
         // Галерея на каждый минувший scroll-единиц от gEnd сдвигается на столько же —
         // как любой контент на 1-2 экранах. Никаких pan-нормализаций на бюджет.
-        const k = 0.14 * innerH;                       // px на scroll-единицу (эталон экрана 2)
+        const k = 0.12 * innerH;                       // px на scroll-единицу (эталон экрана 2)
         let scr = rest * k;                            // сколько px уже прокручено галереей
         // Конец прокрутки: низ всей страницы (конец блока «Авторы») встаёт ровно
         // на низ экрана. Скролл-трансформ лёг на страницу, чья статическая позиция
